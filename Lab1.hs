@@ -5,10 +5,10 @@ import System.Random
 
 
 -- TODO: fix this to be something used in the 1-player game (4 lives). 
--- Declaring a constant, `nRounds`.
+-- Declaring a constant, `nLives`.
 
-nRounds :: Int
-nRounds = 10
+nLives :: Int
+nLives = 4
 
 
 -- Defining a datatype, `RollResult`.
@@ -26,13 +26,15 @@ data RollResult = SnakeEyes | OneRolled | Doubles Int | Normal Int Int
 
 -- Defining a function.
 
-rollResult :: (Int, Int) -> RollResult
-rollResult (die1, die2) =
-  if die1 == 1
-  then if die2 == 1 then SnakeEyes else OneRolled
-  else if die1 == die2 then Doubles die1 else Normal die1 die2
+rollResult :: [Int] -> RollResult
+rollResult dice =
+  case dice of
+   [die1, die2] -> if die1 == 1 || die2 == 1
+                   then if die1 == die2 then SnakeEyes else OneRolled
+                   else if die1 == die2 then Doubles die1 else Normal die1 die2
+   _            -> error "rollResult expects two dice"
 
--- Exercise 1: Read up on `case/of` and pattern matching. Rewrite this function
+-- Exercise #1: Read up on `case/of` and pattern matching. Rewrite this function
 -- using a `case/of` block and no `if` statements. 
 
 
@@ -43,7 +45,8 @@ rollD6 :: IO Int
 rollD6 = randomRIO (1, 6)
 
 
--- Exercise #2: why is rolling a die stateful?
+-- Exercise #2: why is rolling a die stateful? Why does it have the
+-- type signature `IO Int`?
 
 -- Exercise #3: what other conceivable type signatures could "roll a 6-sided
 -- die" have?
@@ -67,6 +70,11 @@ roll2d6 = do
 -- Another function. A return of `Nothing` represents failure while a return of
 -- `Just b` means a successful parse of `Bool` `b`. 
 
+-- If you're not familiar with `Maybe`, it's a *parameterized* union type.
+--     `data Maybe a = Nothing | Just a`
+-- Typically Nothing represents null, an  "n/a" value, or failure. Unlike Java's
+-- null, however, it's type-safe. 
+
 readYN :: String -> Maybe Bool
 readYN str =
   case head (map toUpper str) of
@@ -88,81 +96,79 @@ humanYN prompt = do
   case readYN input of
     Just b -> return b
     Nothing -> do
-      print "Bad input! I only understand Y/N."
+      putStrLn "Bad input! I only understand Y/N."
       humanYN prompt
+
+humanNoChoice :: String -> IO Bool
+humanNoChoice prompt = do
+  putStr prompt
+  input <- getLine
+  case readYN input of
+   Just False -> do
+     putStrLn "Well you're doing it anyway."  -- "But thou must!"
+     return True
+   _ -> return True
+
+-- `blankLine` is an action that prints an empty line to the console. It does IO
+-- but has nothing to return, so it returns `()`, pronounced "unit". 
+blankLine :: IO ()
+blankLine = putStrLn ""
 
 
 -- A simple product type with record syntax. 
 data RoundResult = RoundResult {pointsScored :: Int,
-                                livesLost    :: Int}
+                                livesLost    :: Int} deriving Show
 
+-- This is the workhorse method. It plays a round of Dodgy Dice.
+-- TODO: explain the ($) operator. 
 playARound :: IO RoundResult
 playARound = loop 0
   where loop score = do
-          continue <- if score /= 0
-                      then humanYN "Roll again? "
-                      else return True
-          if continue
-          then do
-
-          else return (RoundResult {pointsScored = score,
-                                    livesLost    = 0})
-
--- playARound :: IO 
--- playARound ai = loop 0
---   where loop score = undefined
-
-
-
-  --                    do
-   
-  --         if score /= 0
-  --         then humanYN "Roll again? "
-  --         else return True
+          cont <- if score /= 0
+                  then humanYN "Roll again? "
+                  else humanNoChoice "Forced roll: "
+          if cont
+            then do
+              dice <- roll2d6
+              putStrLn $ "You rolled: " ++ (show dice)
+              case rollResult dice of
+               SnakeEyes -> return $ RoundResult {pointsScored = 0, livesLost = 2}
+               OneRolled -> return $ RoundResult {pointsScored = 0, livesLost = 1}
+               Normal d1 d2 -> loop (score + d1 + d2)
+               Doubles d    -> loop (score + 4 * d)
+            else return (RoundResult {pointsScored = score,
+                                      livesLost    = 0})
 
 
+playAGame :: Int -> IO ()
+playAGame nLives = do
+  putStrLn "Welcome to Dodgy Dice!"
+  loop nLives 0
+    where loop lives score =
+            if lives <= 0
+            then putStrLn ("GAME OVER: Your score is " ++ (show score))
+            else do
+              blankLine >> putStrLn "New Round!" >> blankLine
+              printStatus lives score
+              RoundResult ptsScored lvsLost <- playARound
+              if lvsLost > 0
+                then putStrLn ("You lost " ++ (show lvsLost) ++ " lives.")
+                     >> loop (lives - lvsLost) score
+                else putStrLn ("You scored " ++ (show ptsScored) ++ " points.")
+                     >> loop lives (score + ptsScored)
+          printStatus lives score =
+            putStrLn $ "Lives left: " ++ (show lives) ++ " Score: " ++ (show score)
 
-  -- where loop hScore cScore hPlaying cPlaying = do
-  --         hContinue <- if hPlaying
-  --                      then if hScore /= 0
-  --                           then humanYN "Roll again? "
-  --                           else return True
-  --                      else return False
-  --         cContinue <- if cPlaying
-  --                      then if cScore /= 0
-  --                           then runAI ai cScore
-  --                           else return True
-  --                      else return False
-  --         if hContinue || cContinue
-  --           then do
-  --             dice <- roll2d6
-  --             putStrLn ("Rolled " ++ (show dice))
-  --             case (rollResult dice) of
-  --               SnakeEyes    ->
-  --                 return (RoundResult (if hContinue then (-2 * hScore) else hScore)
-  --                                     (if cContinue then (-2 * cScore) else cScore))
-  --               RolledOne    ->
-  --                 return (RoundResult (if hContinue then 0 else hScore)
-  --                                     (if cContinue then 0 else cScore))
-  --               Normal d1 d2 ->
-                  
-  --           else return (RoundResult hScore cScore)
+-- Exercise #6: Currently, when you lose a life on rolling a 1, you see this at
+-- the console:
           
+--    "You lost 1 lives."
+
+-- How would you change the code so that it says "You lost 1 life."?
 
 
--- playARound uses `where` to define a subfunction. 
-
--- playARound :: IO RoundResult
--- playARound = loop 0 0
---   where
-    
-
--- This is an action that 
-
+-- A Haskell executable, when run, executes an action called `main` with type
+-- `IO ()`.
 
 main :: IO ()
-main = do
-  print $ "Welcome to Dodgy Dice!"
-  x1 <- rollD6
-  x2 <- rollD6
-  print $ "You rolled a: " ++ show (x1 + x2)
+main = playAGame nLives
