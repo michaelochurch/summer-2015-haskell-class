@@ -136,8 +136,15 @@ blankLine = putStrLn ""
 data RoundResult = RoundResult {pointsScored :: Int,
                                 livesLost    :: Int} deriving Show
 
--- This is the workhorse method. It plays a round of Dodgy Dice.
 
+-- `playARound` is the workhorse method. It plays a round of Dodgy Dice.
+
+-- Aside #1: You'll often see the infix operator `$`. This is the function
+-- application operator, with the following type signature:
+
+--   `($) :: (a -> b) -> a -> b`
+
+-- Its purpose is explained in the Course Slides (Lab #1).
 
 playARound :: Int -> IO RoundResult
 playARound roundNum = loop 0 1
@@ -183,14 +190,6 @@ playAGame nLives = do
 --    "You lost 1 lives."
 
 -- How would you change the code so that it says "You lost 1 life."?
-
-
--- Aside #1: You'll often see the infix operator `$`. This is the function
--- application operator, with the following type signature:
-
---   `($) :: (a -> b) -> a -> b`
-
--- Its purpose is explained in the Course Slides (Lab #1).
 
 
 -- Exercise #7: Define factorial at ghci like so.
