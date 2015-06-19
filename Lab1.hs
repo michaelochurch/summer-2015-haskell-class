@@ -4,12 +4,24 @@ import Data.Char
 import System.Random
 
 
--- TODO: fix this to be something used in the 1-player game (4 lives). 
 -- Declaring a constant, `nLives`.
 
 nLives :: Int
 nLives = 4
 
+
+-- Defining an *action*. "IO" means that the action is capable of stateful
+-- effects. An `IO a` is an action that returns a value of type `a`. 
+
+rollD6 :: IO Int
+rollD6 = randomRIO (1, 6)
+
+
+-- Exercise #2: why is rolling a die stateful? Why does it have the
+-- type signature `IO Int`?
+
+-- Exercise #3: what other conceivable type signatures could "roll a 6-sided
+-- die" have?
 
 -- Defining a datatype, `RollResult`.
 
@@ -38,19 +50,22 @@ rollResult dice =
 -- using a `case/of` block and no `if` statements. 
 
 
--- Defining an *action*. "IO" means that the action is capable of stateful
--- effects. An `IO a` is an action that returns a value of type `a`. 
+score :: RollResult -> Int
+score rr = case rr of
+  SnakeEyes    -> 0
+  OneRolled    -> 0
+  Normal d1 d2 -> d1 + d2
+  Doubles d    -> 4 * d
 
-rollD6 :: IO Int
-rollD6 = randomRIO (1, 6)
+lifeLoss :: RollResult -> Int
+lifeLoss rr = case rr of
+  SnakeEyes    -> 2
+  OneRolled    -> 1
+  Normal _ _   -> 0
+  Doubles _    -> 0
 
-
--- Exercise #2: why is rolling a die stateful? Why does it have the
--- type signature `IO Int`?
-
--- Exercise #3: what other conceivable type signatures could "roll a 6-sided
--- die" have?
-
+endsRound :: RollResult -> Bool
+endsRound rr = (lifeLoss rr) /= 0
 
 
 -- Combining actions with `do` notation.
@@ -99,6 +114,7 @@ humanYN prompt = do
       putStrLn "Bad input! I only understand Y/N."
       humanYN prompt
 
+-- This asks the user for input but ignores it. 
 humanNoChoice :: String -> IO Bool
 humanNoChoice prompt = do
   putStr prompt
@@ -108,6 +124,7 @@ humanNoChoice prompt = do
      putStrLn "Well you're doing it anyway."  -- "But thou must!"
      return True
    _ -> return True
+
 
 -- `blankLine` is an action that prints an empty line to the console. It does IO
 -- but has nothing to return, so it returns `()`, pronounced "unit". 
@@ -120,11 +137,12 @@ data RoundResult = RoundResult {pointsScored :: Int,
                                 livesLost    :: Int} deriving Show
 
 -- This is the workhorse method. It plays a round of Dodgy Dice.
--- TODO: explain the ($) operator. 
-playARound :: IO RoundResult
-playARound = loop 0
-  where loop score = do
-          cont <- if score /= 0
+
+
+playARound :: Int -> IO RoundResult
+playARound roundNum = loop 0 1
+  where loop score rollNum = do
+          cont <- if rollNum > roundNum
                   then humanYN "Roll again? "
                   else humanNoChoice "Forced roll: "
           if cont
@@ -134,8 +152,8 @@ playARound = loop 0
               case rollResult dice of
                SnakeEyes -> return $ RoundResult {pointsScored = 0, livesLost = 2}
                OneRolled -> return $ RoundResult {pointsScored = 0, livesLost = 1}
-               Normal d1 d2 -> loop (score + d1 + d2)
-               Doubles d    -> loop (score + 4 * d)
+               Normal d1 d2 -> loop (score + d1 + d2) (rollNum + 1)
+               Doubles d    -> loop (score + 4 * d)   (rollNum + 1)
             else return (RoundResult {pointsScored = score,
                                       livesLost    = 0})
 
@@ -143,19 +161,19 @@ playARound = loop 0
 playAGame :: Int -> IO ()
 playAGame nLives = do
   putStrLn "Welcome to Dodgy Dice!"
-  loop nLives 0
-    where loop lives score =
+  loop nLives 0 1
+    where loop lives score roundNum =
             if lives <= 0
             then putStrLn ("GAME OVER: Your score is " ++ (show score))
             else do
-              blankLine >> putStrLn "New Round!" >> blankLine
+              blankLine >> (putStrLn $ "Round #" ++ (show roundNum)) >> blankLine
               printStatus lives score
-              RoundResult ptsScored lvsLost <- playARound
+              RoundResult ptsScored lvsLost <- playARound roundNum
               if lvsLost > 0
                 then putStrLn ("You lost " ++ (show lvsLost) ++ " lives.")
-                     >> loop (lives - lvsLost) score
+                     >> loop (lives - lvsLost) score (roundNum + 1)
                 else putStrLn ("You scored " ++ (show ptsScored) ++ " points.")
-                     >> loop lives (score + ptsScored)
+                     >> loop lives (score + ptsScored) (roundNum + 1)
           printStatus lives score =
             putStrLn $ "Lives left: " ++ (show lives) ++ " Score: " ++ (show score)
 
@@ -165,6 +183,34 @@ playAGame nLives = do
 --    "You lost 1 lives."
 
 -- How would you change the code so that it says "You lost 1 life."?
+
+
+-- Aside #1: You'll often see the infix operator `$`. This is the function
+-- application operator, with the following type signature:
+
+--   `($) :: (a -> b) -> a -> b`
+
+-- TODO: explain infix precedence and associativity. 
+-- It has infix precedence 0, and is right-associative. So why might you use it?
+-- Let's say that you want to express (a + b)^2. You might be tempted to write:
+
+--   `square a + b`
+
+-- That, however, will be parsed as `(square a) + b`. To get it right, you need
+-- one of the following:
+
+--   `square (a + b)`
+--   `square $ a + b`
+
+-- Exercise #7: Define factorial at ghci like so.
+
+-- ghci> let factorial :: Int -> Int; factorial n = foldl (*) 1 [1..n]
+
+-- Explain why this formulation presents a type error:
+
+-- ghci> factorial factorial 3
+
+-- Fix it in two ways, one using parentheses and one using the `$` operator.
 
 
 -- A Haskell executable, when run, executes an action called `main` with type
