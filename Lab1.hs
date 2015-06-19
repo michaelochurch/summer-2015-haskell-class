@@ -190,17 +190,8 @@ playAGame nLives = do
 
 --   `($) :: (a -> b) -> a -> b`
 
--- TODO: explain infix precedence and associativity. 
--- It has infix precedence 0, and is right-associative. So why might you use it?
--- Let's say that you want to express (a + b)^2. You might be tempted to write:
+-- Its purpose is explained in the Course Slides (Lab #1).
 
---   `square a + b`
-
--- That, however, will be parsed as `(square a) + b`. To get it right, you need
--- one of the following:
-
---   `square (a + b)`
---   `square $ a + b`
 
 -- Exercise #7: Define factorial at ghci like so.
 
