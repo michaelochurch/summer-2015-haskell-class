@@ -10,6 +10,11 @@ nLives :: Int
 nLives = 4
 
 
+-- Defining a function, `oneThirdRoundingUp`, that will be used later on.
+oneThirdRoundingUp :: Int -> Int
+oneThirdRoundingUp n = (n + 2) `quot` 3
+
+
 -- Defining an *action*. "IO" means that the action is capable of stateful
 -- effects. An `IO a` is an action that returns a value of type `a`. 
 
@@ -17,10 +22,10 @@ rollD6 :: IO Int
 rollD6 = randomRIO (1, 6)
 
 
--- Exercise #2: why is rolling a die stateful? Why does it have the
+-- Exercise #1: why is rolling a die stateful? Why does it have the
 -- type signature `IO Int`?
 
--- Exercise #3: what other conceivable type signatures could "roll a 6-sided
+-- Exercise #2: what other conceivable type signatures could "roll a 6-sided
 -- die" have?
 
 -- Defining a datatype, `RollResult`.
@@ -45,9 +50,6 @@ rollResult dice =
                    then if die1 == die2 then SnakeEyes else OneRolled
                    else if die1 == die2 then Doubles die1 else Normal die1 die2
    _            -> error "rollResult expects two dice"
-
--- Exercise #1: Read up on `case/of` and pattern matching. Rewrite this function
--- using a `case/of` block and no `if` statements. 
 
 
 score :: RollResult -> Int
@@ -87,17 +89,18 @@ roll2d6 = do
 
 -- If you're not familiar with `Maybe`, it's a *parameterized* union type.
 --     `data Maybe a = Nothing | Just a`
--- Typically Nothing represents null, an  "n/a" value, or failure. Unlike Java's
+-- Typically `Nothing` represents null, an  "n/a" value, or failure. Unlike Java's
 -- null, however, it's type-safe. 
 
 readYN :: String -> Maybe Bool
+readYN "" = Nothing
 readYN str =
   case head (map toUpper str) of
     'Y' -> Just True
     'N' -> Just False
     _   -> Nothing
 
--- Exercise #4: What do `head` and `map` do?
+-- Exercise #3: What do `head` and `map` do?
 -- Hint #1: Hoogle is your friend.
 -- Hint #2: in Haskell, `String` is a synonym for `[Char]`.
 
@@ -149,8 +152,8 @@ data RoundResult = RoundResult {pointsScored :: Int,
 playARound :: Int -> IO RoundResult
 playARound roundNum = loop 0 1
   where loop score rollNum = do
-          cont <- if rollNum > roundNum
-                  then humanYN "Roll again? "
+          cont <- if rollNum > oneThirdRoundingUp roundNum
+                  then humanYN "Roll again (y/n)? "
                   else humanNoChoice "Forced roll: "
           if cont
             then do
@@ -184,7 +187,7 @@ playAGame nLives = do
           printStatus lives score =
             putStrLn $ "Lives left: " ++ (show lives) ++ " Score: " ++ (show score)
 
--- Exercise #6: Currently, when you lose a life on rolling a 1, you see this at
+-- Exercise #4: Currently, when you lose a life on rolling a 1, you see this at
 -- the console:
           
 --    "You lost 1 lives."
@@ -192,7 +195,7 @@ playAGame nLives = do
 -- How would you change the code so that it says "You lost 1 life."?
 
 
--- Exercise #7: Define factorial at ghci like so.
+-- Exercise #5: Define factorial at ghci like so.
 
 -- ghci> let factorial :: Int -> Int; factorial n = foldl (*) 1 [1..n]
 
