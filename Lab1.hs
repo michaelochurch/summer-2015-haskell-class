@@ -52,8 +52,8 @@ rollResult dice =
    _            -> error "rollResult expects two dice"
 
 
-score :: RollResult -> Int
-score rr = case rr of
+scoreResult :: RollResult -> Int
+scoreResult rr = case rr of
   SnakeEyes    -> 0
   OneRolled    -> 0
   Normal d1 d2 -> d1 + d2
@@ -158,15 +158,23 @@ playARound roundNum = loop 0 1
           if cont
             then do
               dice <- roll2d6
-              putStrLn $ "You rolled: " ++ (show dice)
-              case rollResult dice of
-               SnakeEyes -> return $ RoundResult {pointsScored = 0, livesLost = 2}
-               OneRolled -> return $ RoundResult {pointsScored = 0, livesLost = 1}
-               Normal d1 d2 -> loop (score + d1 + d2) (rollNum + 1)
-               Doubles d    -> loop (score + 4 * d)   (rollNum + 1)
-            else return (RoundResult {pointsScored = score,
-                                      livesLost    = 0})
+              let result = rollResult dice
+              putStrLn $ "You rolled: " ++ show dice ++ " (" ++ show (scoreResult result) ++ " pts.)"
+              if endsRound result
+                then return $ RoundResult {pointsScored = 0, livesLost = (lifeLoss result)}
+                else do
+                  let newScore = score + (scoreResult result)
+                  putStrLn ("Score for this round: " ++ (show newScore)) >> blankLine
+                  loop newScore (rollNum + 1) 
+            else return $ RoundResult {pointsScored = score,
+                                       livesLost    = 0}
 
+
+endGame :: Int -> IO ()
+endGame finalScore = do
+  blankLine
+  blankLine
+  putStrLn $ "GAME OVER: Your final score is " ++ (show finalScore)
 
 playAGame :: Int -> IO ()
 playAGame nLives = do
@@ -174,7 +182,7 @@ playAGame nLives = do
   loop nLives 0 1
     where loop lives score roundNum =
             if lives <= 0
-            then putStrLn ("GAME OVER: Your score is " ++ (show score))
+            then endGame score
             else do
               blankLine >> (putStrLn $ "Round #" ++ (show roundNum)) >> blankLine
               printStatus lives score
