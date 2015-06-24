@@ -1,5 +1,6 @@
 dist
 cabal-dev
+play
 *.o
 *.hi
 *.chi
