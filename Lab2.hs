@@ -5,7 +5,7 @@
 -- read, eval, print
 -- car, cdr, cons, eq, atom, quote, if
 -- +, -, *, /, <, >, >=, ==, /=, and, or as macros
--- list, of course. 
+-- list, of course.
 -- lambda -- include recursion
 
 -- Values include: Number, List, Symbol, Bool, String, Nil(?)
@@ -14,7 +14,7 @@
 -- apply
 
 -- load a file that defines factorial and map and range. use at repl.
--- Lambda calculus / Church numeral demonstration. 
+-- Lambda calculus / Church numeral demonstration.
 -- none of this needs to be tail recursive or fast.
 
 module Main where
@@ -26,7 +26,7 @@ import Data.List (intercalate)
 import qualified Data.Map as M
 import Text.Parsec
 import Text.Parsec.Language (haskellDef)
-import Text.Parsec.Token (makeTokenParser, stringLiteral) 
+import Text.Parsec.Token (makeTokenParser, stringLiteral)
 
 
 data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
@@ -34,7 +34,7 @@ data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 parseAtom :: Parsec String u SExp
 parseAtom = SAtom <$> many (satisfy (\c -> c `notElem` "()\"" && (not . isSpace) c))
 
--- I really don't feel like writing my own string literal parser. 
+-- I really don't feel like writing my own string literal parser.
 stringLit :: Parsec String u String
 stringLit = stringLiteral $ makeTokenParser haskellDef
 
@@ -81,7 +81,7 @@ readSAtom s@(c:cs) =
               _    -> LSymbol s
     d | isDigit d  -> LNumber (read s)
     _              -> LSymbol s
- 
+
 readSExp :: SExp -> LispValue
 readSExp (SAtom s) = readSAtom s
 readSExp (SList l) = LList $ map readSExp l
@@ -103,6 +103,11 @@ atom :: LispValue -> Bool
 atom (LList _) = False
 atom _         = True
 
+selfEvaluating :: LispValue -> Bool
+selfEvaluating (LList _) = False
+selfEvaluating (LSymbol _) = False
+selfEvaluating _           = True
+
 isLambdaForm :: LispValue -> Bool
 isLambdaForm (LList ((LSymbol "lambda"):_)) = True
 isLambdaForm _                              = False
@@ -115,7 +120,11 @@ headIs lv str =
 
 getPos :: LispValue -> Int -> LispValue
 getPos (LList xs) n = xs !! n
-getPos _          _ = error "getPos : requires a LList"
+getPos _          _ = error "getPos : requires an LList"
+
+getStr :: LispValue -> String
+getStr (LSymbol str) = str
+getStr _             = error "getStr : requires an LSymbol"
 
 type LispEnv = M.Map String LispValue
 
@@ -124,8 +133,24 @@ type Lisp a = StateT LispEnv IO a
 runLisp :: Lisp a -> LispEnv -> IO (a, LispEnv)
 runLisp lispAction env = lispAction `runStateT` env
 
-evalIf :: LispValue -> LispValue -> LispValue
-evalIf = undefined
+truthy :: LispValue -> Bool
+truthy (LBool False) = False
+truthy _             = True
+
+evalIf :: LispValue -> LispValue -> LispValue -> Lisp LispValue
+evalIf condForm thenForm elseForm =
+  do
+    cond <- eval condForm
+    if truthy cond
+    then eval thenForm
+    else eval elseForm
+
+evalDef :: LispValue -> LispValue -> Lisp LispValue
+evalDef symbol valForm =
+  do
+    value <- eval valForm
+    modify $ M.insert (getStr $ symbol) value
+    return $ LBool True
 
 cond :: [(Bool, a)] -> a
 cond [] = undefined
@@ -134,17 +159,19 @@ cond ((False, _):ls) = cond ls
 
 eval :: LispValue -> Lisp LispValue
 eval lispValue =
-  cond [(atom lispValue            , return lispValue),
+  cond [(selfEvaluating lispValue,   return lispValue),
         (lispValue `headIs` "quote", return $ getPos lispValue 1),
-
-        
+        (lispValue `headIs` "def",
+         evalDef (getPos lispValue 1) (getPos lispValue 2)),
+        (lispValue `headIs` "if",
+         evalIf (getPos lispValue 1) (getPos lispValue 2) (getPos lispValue 3)),
         (True, error (show lispValue))
        ]
   -- if atom lispValue
   -- then return lispValue
   -- else if isLambdaForm lispValue
   --      then error "lambdas not implemented yet"
-  --      else if headIs lispValue "quote" then 
+  --      else if headIs lispValue "quote" then
 
 defaultEnv :: LispEnv
 defaultEnv = M.fromList [("+", lispArith2 (+) "+")]
