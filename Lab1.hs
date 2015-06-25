@@ -1,6 +1,7 @@
-module Lab1 where
+module Main where
 
 import Data.Char
+import System.IO
 import System.Random
 
 
@@ -105,11 +106,15 @@ readYN str =
 -- Hint #2: in Haskell, `String` is a synonym for `[Char]`.
 
 
+flush :: IO ()
+flush = hFlush stdout
+
 -- A simple action to get human yes/no input.
 -- Note the recursion on user error. 
 humanYN :: String -> IO Bool
 humanYN prompt = do
   putStr prompt
+  flush
   input <- getLine
   case readYN input of
     Just b -> return b
@@ -121,6 +126,7 @@ humanYN prompt = do
 humanNoChoice :: String -> IO Bool
 humanNoChoice prompt = do
   putStr prompt
+  flush
   input <- getLine
   case readYN input of
    Just False -> do
@@ -133,7 +139,6 @@ humanNoChoice prompt = do
 -- but has nothing to return, so it returns `()`, pronounced "unit". 
 blankLine :: IO ()
 blankLine = putStrLn ""
-
 
 -- A simple product type with record syntax. 
 data RoundResult = RoundResult {pointsScored :: Int,
