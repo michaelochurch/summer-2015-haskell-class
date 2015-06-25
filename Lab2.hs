@@ -15,6 +15,17 @@
 -- Lambda calculus / Church numeral demonstration.
 -- none of this needs to be tail recursive or fast.
 
+-- FIX CLOSURES
+
+-- λισπ> (def twice (lambda (f) (lambda (x) (f (f x)))))
+-- #t
+-- λισπ> (def c (twice (lambda (x) (+ x 17))))
+-- #t
+-- λισπ> c
+-- < λ (x) . (f (f x)) >
+-- λισπ> (c 100)
+-- *** Exception: can't find symbol: f
+
 module Main where
 
 import Control.Applicative hiding (many, (<|>))
