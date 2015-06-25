@@ -22,7 +22,7 @@ module Main where
 import Control.Applicative hiding (many, (<|>))
 import Control.Monad.State
 import Data.Char (isDigit, isSpace)
-import Data.List (intercalate)
+import Data.List (foldl', intercalate)
 import qualified Data.Map as M
 import Text.Parsec
 import Text.Parsec.Language (haskellDef)
@@ -98,6 +98,11 @@ readString s =
     Left _     -> error "parse error"
     Right sExp -> readSExp sExp
 
+-- To make the lifting of functions to LispValue fn's easier. 
+class Liftable a where
+  toLisp :: a -> LispValue
+  fromLisp :: LispValue -> Maybe a
+
 lispArith2 :: (Double -> Double -> Double) -> String -> LispValue
 lispArith2 f name = LFunction name f2
   where f2 xs =
@@ -143,10 +148,6 @@ truthy :: LispValue -> Bool
 truthy (LBool False) = False
 truthy _             = True
 
--- isPrimitiveFunction :: LispValue -> Bool
--- isPrimitiveFunction (LFunction _ _) = True
--- isPrimitiveFunction _               = False
-
 isSymbol :: LispValue -> Bool
 isSymbol (LSymbol _) = True
 isSymbol _           = False
@@ -177,15 +178,40 @@ evalSymbol symbol = do
    Just value -> return value
    Nothing    -> error $ "can't find symbol: " ++ (getStr symbol)
 
+unLList :: LispValue -> [LispValue]
+unLList (LList xs) = xs
+unLList _          = error "unLList needs a list"
+
 evalLambda :: LispValue -> Lisp LispValue
 evalLambda lambdaList =
-  undefined
+  let pos = getPos lambdaList
+  in if (isSymbol $ pos 1)
+     then return $ LLambda (Just $ pos 1) (unLList $ pos 2) (pos 3)
+     else return $ LLambda Nothing (unLList $ pos 1) (pos 2)
 
 apply :: [LispValue] -> Lisp LispValue
 apply [] = error "apply : requires a function"
 apply ((LFunction _ f):args) = return $ f args
-apply ((LLambda _ names body):args) = undefined
+apply (lform@(LLambda maybeFName argNames body):args) =
+  applyLambda lform args
 apply _ = error "apply : requires a function"
+
+envPlus :: LispEnv -> [(LispValue, LispValue)] -> LispEnv
+envPlus env list =
+  foldl' (\e (name, val) -> M.insert (getStr name) val e) env list
+
+applyLambda :: LispValue -> [LispValue] -> Lisp LispValue
+applyLambda lform args = do
+  let (LLambda maybeFName argNames body) = lform
+  argValues <- sequence (map eval args)
+  env0      <- get
+  let env1 = env0 `envPlus` zip argNames args
+  put env1
+  result    <- eval body
+  put env0
+  return result
+
+--applyLambda :: LispValue -> 
 
 evalListForm :: LispValue -> Lisp LispValue
 evalListForm lv@(LList lispValues) =
@@ -195,7 +221,6 @@ evalListForm lv@(LList lispValues) =
   valueList -> do
     args <- sequence (map eval valueList)
     apply args
-
 evalListFrom _ = error $ "evalListForm : requires an LList"
 
 cond :: [(Bool, a)] -> a
