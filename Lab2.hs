@@ -8,8 +8,6 @@
 -- list, of course.
 -- lambda -- include recursion
 
--- Values include: Number, List, Symbol, Bool, String, Nil(?)
-
 -- def, defun, defmacro
 -- apply
 
@@ -24,6 +22,7 @@ import Control.Monad.State
 import Data.Char (isDigit, isSpace)
 import Data.List (foldl', intercalate)
 import qualified Data.Map as M
+import System.IO (hFlush, stdout)
 import Text.Parsec
 import Text.Parsec.Language (haskellDef)
 import Text.Parsec.Token (makeTokenParser, stringLiteral)
@@ -63,7 +62,7 @@ data LispValue = LString String | LSymbol String | LNumber Double |
                  LList [LispValue] | LBool Bool
 
 instance Show LispValue where
-  show (LString str) = show str
+  show (LString str) = str
   show (LSymbol sym) = sym
   show (LNumber d) = show d
   show (LFunction name _) = "< prim. function called " ++ name ++ " >"
@@ -103,19 +102,37 @@ class Liftable a where
   toLisp :: a -> LispValue
   fromLisp :: LispValue -> Maybe a
 
-lispArith2 :: (Double -> Double -> Double) -> String -> LispValue
-lispArith2 f name = LFunction name f2
-  where f2 xs =
-          case xs of
-            [(LNumber x1), (LNumber x2)] -> LNumber $ f x1 x2
-            _        -> error $ name ++ (intercalate " " $ map show xs)
+instance Liftable Double where
+  toLisp = LNumber
+  fromLisp (LNumber x) = Just x
+  fromLisp _           = Nothing
+
+instance Liftable Bool where
+  toLisp = LBool
+  fromLisp (LBool x) = Just x
+  fromLisp _         = Nothing
+
+-- lispArith2 :: (Double -> Double -> Double) -> String -> LispValue
+-- lispArith2 f name = LFunction name f2
+--   where f2 xs =
+--           case xs of
+--             [(LNumber x1), (LNumber x2)] -> LNumber $ f x1 x2
+--             _        -> error $ name ++ (intercalate " " $ map show xs)
+
+liftToLisp2 :: (Liftable a, Liftable b, Liftable c) => (a -> b -> c) -> String -> LispValue
+liftToLisp2 f name = LFunction name f2
+  where f2 xs@[x1, x2] =
+          case (fromLisp x1, fromLisp x2) of
+          (Just v1, Just v2) -> toLisp $ f v1 v2
+          _                  -> error $ name ++ (intercalate " " $ map show xs)
 
 atom :: LispValue -> Bool
 atom (LList _) = False
 atom _         = True
 
 selfEvaluating :: LispValue -> Bool
-selfEvaluating (LList _) = False
+selfEvaluating (LList [])  = True
+selfEvaluating (LList _)   = False
 selfEvaluating (LSymbol _) = False
 selfEvaluating _           = True
 
@@ -211,8 +228,6 @@ applyLambda lform args = do
   put env0
   return result
 
---applyLambda :: LispValue -> 
-
 evalListForm :: LispValue -> Lisp LispValue
 evalListForm lv@(LList lispValues) =
   case lispValues of
@@ -241,25 +256,45 @@ eval lispValue =
         (True, error (show lispValue))
        ]
 
--- if atom lispValue
-  -- then return lispValue
-  -- else if isLambdaForm lispValue
-  --      then error "lambdas not implemented yet"
-  --      else if headIs lispValue "quote" then
+car :: LispValue
+car = LFunction "car" (\x -> case x of
+                        [(LList (hd:_))] -> hd
+                        _              -> LBool False)
+
+cdr :: LispValue
+cdr = LFunction "cdr" (\x -> case x of
+                        [(LList (_:tl))] -> LList tl
+                        _                -> LBool False)
 
 defaultEnv :: LispEnv
-defaultEnv = M.fromList [("+", lispArith2 (+) "+"),
-                         ("-", lispArith2 (-) "-"),
-                         ("*", lispArith2 (*) "*"),
-                         ("/", lispArith2 (/) "/")]
-
--- 1. (quote -- don't eval)
--- 2. (if -- special rules)
--- 3. (lambda -- special rules)
--- 4. (all else-- as function)
+defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
+                         ("-",  liftToLisp2 (\x y -> (x :: Double) - y) "-"),
+                         ("*",  liftToLisp2 (\x y -> (x :: Double) * y) "*"),
+                         ("/",  liftToLisp2 (\x y -> (x :: Double) / y) "/"),
+                         ("==", liftToLisp2 (\x y -> (x :: Double) == y) "=="),
+                         ("/=", liftToLisp2 (\x y -> (x :: Double) /= y) "/="),
+                         ("<",  liftToLisp2 (\x y -> (x :: Double) < y)  "<"),
+                         ("<=", liftToLisp2 (\x y -> (x :: Double) <= y) "<="),
+                         (">",  liftToLisp2 (\x y -> (x :: Double) > y)  ">"),
+                         (">=", liftToLisp2 (\x y -> (x :: Double) >= y) ">="),
+                         ("car", car),
+                         ("cdr", cdr)]
 
 prompt :: String
 prompt = "λισπ> "
 
+flush :: IO ()
+flush = hFlush stdout
+
+-- BUG : parse of "()" is incorrect. It has an empty string for the car, I think.
+
+repl :: Lisp ()
+repl = forever $ do lift $ putStr prompt
+                    lift flush
+                    inString <- lift getLine
+                    let lisp = readString inString
+                    result <- eval lisp
+                    lift $ print result
+
 main :: IO ()
-main = return ()
+main = repl `runLisp` defaultEnv >> return ()
