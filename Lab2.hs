@@ -58,17 +58,23 @@ parseSExp :: Parsec String u SExp
 parseSExp = parseQuoted <|> parseList <|> parseString <|> parseAtom
 
 data LispValue = LString String | LSymbol String | LNumber Double |
-                 LFunction (String, [LispValue] -> LispValue) |
+                 LFunction String ([LispValue] -> LispValue) |
+                 LLambda (Maybe LispValue) [LispValue] LispValue |
                  LList [LispValue] | LBool Bool
 
 instance Show LispValue where
   show (LString str) = show str
   show (LSymbol sym) = sym
   show (LNumber d) = show d
-  show (LFunction (name, _)) = "<function called " ++ name ++ ">"
+  show (LFunction name _) = "< prim. function called " ++ name ++ " >"
   show (LList lst) = "(" ++ intercalate " " (map show lst) ++ ")"
   show (LBool True) = "#t"
   show (LBool False) = "#f"
+  show (LLambda maybeName symbols body) =
+    "< " ++ name ++ "λ " ++ (show . LList $ symbols) ++ " . " ++ (show body) ++ " >"
+       where name = case maybeName of
+                      Just sym -> (show sym) ++ " = "
+                      Nothing -> ""
 
 readSAtom :: String -> LispValue
 readSAtom ""     = LString ""
@@ -93,7 +99,7 @@ readString s =
     Right sExp -> readSExp sExp
 
 lispArith2 :: (Double -> Double -> Double) -> String -> LispValue
-lispArith2 f name = LFunction (name, f2)
+lispArith2 f name = LFunction name f2
   where f2 xs =
           case xs of
             [(LNumber x1), (LNumber x2)] -> LNumber $ f x1 x2
@@ -137,6 +143,18 @@ truthy :: LispValue -> Bool
 truthy (LBool False) = False
 truthy _             = True
 
+-- isPrimitiveFunction :: LispValue -> Bool
+-- isPrimitiveFunction (LFunction _ _) = True
+-- isPrimitiveFunction _               = False
+
+isSymbol :: LispValue -> Bool
+isSymbol (LSymbol _) = True
+isSymbol _           = False
+
+isListForm :: LispValue -> Bool
+isListForm (LList _) = True
+isListForm _         = False
+
 evalIf :: LispValue -> LispValue -> LispValue -> Lisp LispValue
 evalIf condForm thenForm elseForm =
   do
@@ -152,6 +170,34 @@ evalDef symbol valForm =
     modify $ M.insert (getStr $ symbol) value
     return $ LBool True
 
+evalSymbol :: LispValue -> Lisp LispValue
+evalSymbol symbol = do
+  env <- get
+  case M.lookup (getStr symbol) env of
+   Just value -> return value
+   Nothing    -> error $ "can't find symbol: " ++ (getStr symbol)
+
+evalLambda :: LispValue -> Lisp LispValue
+evalLambda lambdaList =
+  undefined
+
+apply :: [LispValue] -> Lisp LispValue
+apply [] = error "apply : requires a function"
+apply ((LFunction _ f):args) = return $ f args
+apply ((LLambda _ names body):args) = undefined
+apply _ = error "apply : requires a function"
+
+evalListForm :: LispValue -> Lisp LispValue
+evalListForm lv@(LList lispValues) =
+  case lispValues of
+  []                     -> return lv -- empty list: self-evaluating.
+  ((LSymbol "lambda"):_) -> evalLambda lv
+  valueList -> do
+    args <- sequence (map eval valueList)
+    apply args
+
+evalListFrom _ = error $ "evalListForm : requires an LList"
+
 cond :: [(Bool, a)] -> a
 cond [] = undefined
 cond ((True,  x):_ ) = x
@@ -165,21 +211,30 @@ eval lispValue =
          evalDef (getPos lispValue 1) (getPos lispValue 2)),
         (lispValue `headIs` "if",
          evalIf (getPos lispValue 1) (getPos lispValue 2) (getPos lispValue 3)),
+        (isSymbol lispValue,   evalSymbol lispValue),
+        (isListForm lispValue, evalListForm lispValue),
         (True, error (show lispValue))
        ]
-  -- if atom lispValue
+
+-- if atom lispValue
   -- then return lispValue
   -- else if isLambdaForm lispValue
   --      then error "lambdas not implemented yet"
   --      else if headIs lispValue "quote" then
 
 defaultEnv :: LispEnv
-defaultEnv = M.fromList [("+", lispArith2 (+) "+")]
+defaultEnv = M.fromList [("+", lispArith2 (+) "+"),
+                         ("-", lispArith2 (-) "-"),
+                         ("*", lispArith2 (*) "*"),
+                         ("/", lispArith2 (/) "/")]
 
 -- 1. (quote -- don't eval)
 -- 2. (if -- special rules)
 -- 3. (lambda -- special rules)
 -- 4. (all else-- as function)
+
+prompt :: String
+prompt = "λισπ> "
 
 main :: IO ()
 main = return ()
