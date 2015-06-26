@@ -4,7 +4,7 @@
 -- S-expression parsing Data.Parsec
 -- read, eval, print
 -- car, cdr, cons, eq, atom, quote, if
--- +, -, *, /, <, >, >=, ==, /=, and, or as macros
+--  and, or as macros
 -- list, of course.
 -- lambda -- include recursion
 
@@ -44,15 +44,20 @@ data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 parseAtom :: Parsec String u SExp
 parseAtom = SAtom <$> many (satisfy (\c -> c `notElem` "()\"" && (not . isSpace) c))
 
--- I really don't feel like writing my own string literal parser.
+inStringLit :: Parsec String u Char
+inStringLit = (noneOf "\"\\") <|> string "\\\"" *> return '"' <|> string "\\\\"
+ *> return '\\'
+
 stringLit :: Parsec String u String
-stringLit = stringLiteral $ makeTokenParser haskellDef
+stringLit = between (char '"') (char '"') (many inStringLit)
 
 enquote :: String -> String
 enquote s = "\"" ++ s ++ "\""
 
 parseString :: Parsec String u SExp
 parseString = (SAtom . enquote) <$> stringLit
+
+--parseList fails on "()"
 
 parseList :: Parsec String u SExp
 parseList = SList <$> (char '(' *> many space *> body <* many space <* char ')')
@@ -73,7 +78,7 @@ data LispValue = LString String | LSymbol String | LNumber Double |
                  LList [LispValue] | LBool Bool
 
 instance Show LispValue where
-  show (LString str) = str
+  show (LString str) = show str
   show (LSymbol sym) = sym
   show (LNumber d) = show d
   show (LFunction name _) = "< prim. function called " ++ name ++ " >"
@@ -86,11 +91,18 @@ instance Show LispValue where
                       Just sym -> (show sym) ++ " = "
                       Nothing -> ""
 
+dequoteStringLiteral :: String -> String
+dequoteStringLiteral s =
+  if length s >= 2 && (head s) == '"' && (last s) == '"'
+  then tail . init $ s
+  else error "dequoteStringLiteral : that wasn't a string literal"
+  
+    
 readSAtom :: String -> LispValue
 readSAtom ""     = LString ""
 readSAtom s@(c:cs) =
   case c of
-    '\"' -> LString s
+    '\"' -> LString $ dequoteStringLiteral s
     '#'  -> case s of
               "#t" -> LBool True
               "#f" -> LBool False
@@ -105,7 +117,7 @@ readSExp (SList l) = LList $ map readSExp l
 readString :: String -> LispValue
 readString s =
   case parse parseSExp "(some lisp, I hope)" s of
-    Left _     -> error "parse error"
+    Left e     -> error (show e)
     Right sExp -> readSExp sExp
 
 -- To make the lifting of functions to LispValue fn's easier. 
@@ -122,13 +134,6 @@ instance Liftable Bool where
   toLisp = LBool
   fromLisp (LBool x) = Just x
   fromLisp _         = Nothing
-
--- lispArith2 :: (Double -> Double -> Double) -> String -> LispValue
--- lispArith2 f name = LFunction name f2
---   where f2 xs =
---           case xs of
---             [(LNumber x1), (LNumber x2)] -> LNumber $ f x1 x2
---             _        -> error $ name ++ (intercalate " " $ map show xs)
 
 liftToLisp2 :: (Liftable a, Liftable b, Liftable c) => (a -> b -> c) -> String -> LispValue
 liftToLisp2 f name = LFunction name f2
@@ -304,6 +309,8 @@ repl = forever $ do lift $ putStr prompt
                     lift flush
                     inString <- lift getLine
                     let lisp = readString inString
+                    -- lift $ print ("lisp = " ++ show lisp)
+                    -- lift $ print ("se = " ++ show (selfEvaluating lisp))
                     result <- eval lisp
                     lift $ print result
 
