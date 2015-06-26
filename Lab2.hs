@@ -60,7 +60,8 @@ parseSExp = parseQuoted <|> parseList <|> parseString <|> parseAtom
 data LispValue = LString String | LSymbol String | LNumber Double |
                  LFunction String ([LispValue] -> LispValue) |
                  LLambda (Maybe LispValue) [LispValue] LispEnv LispValue |
-                 LList [LispValue] | LBool Bool | LError String
+                 LList [LispValue] | LBool Bool | LError String |
+                 LMacro String LispValue
 
 instance Show LispValue where
   show (LString str) = show str
@@ -76,6 +77,7 @@ instance Show LispValue where
                       Just sym -> (show sym) ++ " = "
                       Nothing -> ""
   show (LError string) = "< ERROR: " ++ string ++ " >"
+  show (LMacro name _) = "< macro called " ++ name ++ " >"
 
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =
@@ -233,7 +235,6 @@ envPlus :: LispEnv -> [(LispValue, LispValue)] -> LispEnv
 envPlus env list =
   foldl' (\e (name, val) -> M.insert (getStr name) val e) env list
 
-
 applyLambda :: LispValue -> [LispValue] -> Lisp LispValue
 applyLambda lambdaObj args = do
   let (LLambda maybeFName argNames env body) = lambdaObj
@@ -245,14 +246,29 @@ applyLambda lambdaObj args = do
   put env0
   return result
 
+macroCheck :: LispValue -> Bool
+macroCheck (LMacro _ _) = True
+macroCheck _            = False
+
+evalMacroForm :: LispValue -> Lisp LispValue
+evalMacroForm lv@(LList (mac:args)) = do
+  (LMacro _ mFun) <- eval mac
+  expandedForm <- apply $ mFun:args
+  eval expandedForm
+evalMacroFrom _ = error $ "evalMacroForm : requires non-empty LList"
+
 evalListForm :: LispValue -> Lisp LispValue
 evalListForm lv@(LList lispValues) =
   case lispValues of
   []                     -> return lv -- empty list: self-evaluating.
   ((LSymbol "lambda"):_) -> evalLambda lv
-  valueList -> do
-    args <- sequence (map eval valueList)
-    apply args
+  (v:vs) -> do
+    f <- eval v
+    if macroCheck f
+    then evalMacroForm lv
+    else do
+      args <- sequence (map eval vs)
+      apply $ f:args
 evalListFrom _ = error $ "evalListForm : requires an LList"
 
 cond :: [(Bool, a)] -> a
@@ -270,8 +286,8 @@ eval lispValue =
          evalIf (getPos lispValue 1) (getPos lispValue 2) (getPos lispValue 3)),
         (lispValue `headIs` "quit",
          error "user quit"),
-        (isSymbol lispValue,   evalSymbol lispValue),
-        (isListForm lispValue, evalListForm lispValue),
+        (isSymbol lispValue,     evalSymbol lispValue),
+        (isListForm lispValue,   evalListForm lispValue),
         (True, error (show lispValue))
        ]
 
@@ -322,6 +338,20 @@ atom = LFunction "atom" (\x -> case x of
                           [x1] -> LBool $ lispAtom x1
                           _    -> invalidArg "atom" x)
 
+macroAndFn :: LispValue
+macroAndFn = LFunction "and-fn" (\xs -> case xs of
+                                    []         -> LBool True
+                                    (x:[])     -> x
+                                    (x1:x2:[]) -> LList [LSymbol "if",
+                                                        x1, x2, LBool False]
+                                    (x1:x2:xr) -> LList [LSymbol "if",
+                                                         x1,
+                                                         LList ((LSymbol "and"):x2:xr),
+                                                         LBool False])
+
+macroAnd :: LispValue
+macroAnd = LMacro "and" macroAndFn
+
 defaultEnv :: LispEnv
 defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("-",  liftToLisp2 (\x y -> (x :: Double) - y) "-"),
@@ -333,12 +363,14 @@ defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("<=", liftToLisp2 (\x y -> (x :: Double) <= y) "<="),
                          (">",  liftToLisp2 (\x y -> (x :: Double) > y)  ">"),
                          (">=", liftToLisp2 (\x y -> (x :: Double) >= y) ">="),
+                         ("and", macroAnd),
                          ("atom", atom),
                          ("car", car),
                          ("cdr", cdr),
                          ("cons", cons),
                          ("eq", eq),
-                         ("not", liftToLisp1 not "not")]
+                         ("not", liftToLisp1 not "not"),
+                         ("pi", LNumber pi)]
 
 prompt :: String
 prompt = "λισπ> "
