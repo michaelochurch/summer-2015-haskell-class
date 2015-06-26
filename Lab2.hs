@@ -378,8 +378,6 @@ prompt = "λισπ> "
 flush :: IO ()
 flush = hFlush stdout
 
--- BUG : parse of "()" is incorrect. It has an empty string for the car, I think.
-
 repl :: Lisp ()
 repl = forever $ do lift $ putStr prompt
                     lift flush
