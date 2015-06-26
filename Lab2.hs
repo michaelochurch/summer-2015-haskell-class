@@ -94,8 +94,8 @@ dequoteStringLiteral s =
   if length s >= 2 && (head s) == '"' && (last s) == '"'
   then tail . init $ s
   else error "dequoteStringLiteral : that wasn't a string literal"
-  
-    
+
+
 readSAtom :: String -> LispValue
 readSAtom ""     = LString ""
 readSAtom s@(c:cs) =
@@ -121,7 +121,7 @@ readString s =
     Left e     -> error (show e)
     Right sExp -> readSExp sExp
 
--- To make the lifting of functions to LispValue fn's easier. 
+-- To make the lifting of functions to LispValue fn's easier.
 class Liftable a where
   toLisp :: a -> LispValue
   fromLisp :: LispValue -> Maybe a
