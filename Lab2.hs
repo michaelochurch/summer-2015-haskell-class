@@ -72,7 +72,7 @@ parseSExp = parseQuoted <|> parseList <|> parseString <|> parseAtom
 
 data LispValue = LString String | LSymbol String | LNumber Double |
                  LFunction String ([LispValue] -> LispValue) |
-                 LLambda (Maybe LispValue) [LispValue] LispValue |
+                 LLambda (Maybe LispValue) [LispValue] LispEnv LispValue |
                  LList [LispValue] | LBool Bool
 
 instance Show LispValue where
@@ -83,7 +83,7 @@ instance Show LispValue where
   show (LList lst) = "(" ++ intercalate " " (map show lst) ++ ")"
   show (LBool True) = "#t"
   show (LBool False) = "#f"
-  show (LLambda maybeName symbols body) =
+  show (LLambda maybeName symbols _env body) =
     "< " ++ name ++ "λ " ++ (show . LList $ symbols) ++ " . " ++ (show body) ++ " >"
        where name = case maybeName of
                       Just sym -> (show sym) ++ " = "
@@ -216,17 +216,19 @@ unLList :: LispValue -> [LispValue]
 unLList (LList xs) = xs
 unLList _          = error "unLList needs a list"
 
+-- HAS TO CAPTURE ENVIRONMENT OR THE WORLD IS FUCKED
 evalLambda :: LispValue -> Lisp LispValue
-evalLambda lambdaList =
+evalLambda lambdaList = do
+  env <- get
   let pos = getPos lambdaList
-  in if (isSymbol $ pos 1)
-     then return $ LLambda (Just $ pos 1) (unLList $ pos 2) (pos 3)
-     else return $ LLambda Nothing (unLList $ pos 1) (pos 2)
+  if (isSymbol $ pos 1)
+    then return $ LLambda (Just $ pos 1) (unLList $ pos 2) env (pos 3)
+    else return $ LLambda Nothing        (unLList $ pos 1) env (pos 2)
 
 apply :: [LispValue] -> Lisp LispValue
 apply [] = error "apply : requires a function"
 apply ((LFunction _ f):args) = return $ f args
-apply (lform@(LLambda maybeFName argNames body):args) =
+apply (lform@(LLambda maybeFName argNames env body):args) =
   applyLambda lform args
 apply _ = error "apply : requires a function"
 
@@ -234,12 +236,14 @@ envPlus :: LispEnv -> [(LispValue, LispValue)] -> LispEnv
 envPlus env list =
   foldl' (\e (name, val) -> M.insert (getStr name) val e) env list
 
+
 applyLambda :: LispValue -> [LispValue] -> Lisp LispValue
-applyLambda lform args = do
-  let (LLambda maybeFName argNames body) = lform
+applyLambda lambdaObj args = do
+  let (LLambda maybeFName argNames env body) = lambdaObj
   argValues <- sequence (map eval args)
   env0      <- get
-  let env1 = env0 `envPlus` zip argNames args
+--  let env1 = env0 `envPlus` zip argNames args
+  let env1 = env `envPlus` zip argNames args
   put env1
   result    <- eval body
   put env0
@@ -310,8 +314,6 @@ repl = forever $ do lift $ putStr prompt
                     lift flush
                     inString <- lift getLine
                     let lisp = readString inString
-                    -- lift $ print ("lisp = " ++ show lisp)
-                    -- lift $ print ("se = " ++ show (selfEvaluating lisp))
                     result <- eval lisp
                     lift $ print result
 
