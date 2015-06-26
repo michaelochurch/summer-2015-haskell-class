@@ -15,17 +15,6 @@
 -- Lambda calculus / Church numeral demonstration.
 -- none of this needs to be tail recursive or fast.
 
--- FIX CLOSURES
-
--- λισπ> (def twice (lambda (f) (lambda (x) (f (f x)))))
--- #t
--- λισπ> (def c (twice (lambda (x) (+ x 17))))
--- #t
--- λισπ> c
--- < λ (x) . (f (f x)) >
--- λισπ> (c 100)
--- *** Exception: can't find symbol: f
-
 module Main where
 
 import Control.Applicative hiding (many, (<|>))
@@ -73,7 +62,7 @@ parseSExp = parseQuoted <|> parseList <|> parseString <|> parseAtom
 data LispValue = LString String | LSymbol String | LNumber Double |
                  LFunction String ([LispValue] -> LispValue) |
                  LLambda (Maybe LispValue) [LispValue] LispEnv LispValue |
-                 LList [LispValue] | LBool Bool
+                 LList [LispValue] | LBool Bool | LError String
 
 instance Show LispValue where
   show (LString str) = show str
@@ -88,6 +77,7 @@ instance Show LispValue where
        where name = case maybeName of
                       Just sym -> (show sym) ++ " = "
                       Nothing -> ""
+  show (LError string) = "< ERROR: " ++ string ++ " >"
 
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =
@@ -118,7 +108,7 @@ readSExp (SList l) = LList $ map readSExp l
 readString :: String -> LispValue
 readString s =
   case parse parseSExp "(some lisp, I hope)" s of
-    Left e     -> error (show e)
+    Left e     -> LError $ "Parse Error: " ++ (show e)
     Right sExp -> readSExp sExp
 
 -- To make the lifting of functions to LispValue fn's easier.
@@ -136,16 +126,25 @@ instance Liftable Bool where
   fromLisp (LBool x) = Just x
   fromLisp _         = Nothing
 
+invalidArg :: String -> [LispValue] -> LispValue
+invalidArg name vals =
+  LError $ "Invalid Argument Error: (" ++ name ++ " " ++ (intercalate " " $ map show vals) ++ ")"
+
+liftToLisp1 :: (Liftable a, Liftable b) => (a -> b) -> String -> LispValue
+liftToLisp1 f name = LFunction name f1
+  where f1 xs@[x1] =
+          case fromLisp x1 of
+            Just v1 -> toLisp $ f v1
+            _       -> invalidArg name xs
+        f1 xs = invalidArg name xs
+
 liftToLisp2 :: (Liftable a, Liftable b, Liftable c) => (a -> b -> c) -> String -> LispValue
 liftToLisp2 f name = LFunction name f2
   where f2 xs@[x1, x2] =
           case (fromLisp x1, fromLisp x2) of
           (Just v1, Just v2) -> toLisp $ f v1 v2
-          _                  -> error $ name ++ (intercalate " " $ map show xs)
-
-atom :: LispValue -> Bool
-atom (LList _) = False
-atom _         = True
+          _                  -> invalidArg name xs
+        f2 xs = invalidArg name xs
 
 selfEvaluating :: LispValue -> Bool
 selfEvaluating (LList [])  = True
@@ -201,8 +200,9 @@ evalIf condForm thenForm elseForm =
 evalDef :: LispValue -> LispValue -> Lisp LispValue
 evalDef symbol valForm =
   do
+    modify $ M.delete (getStr symbol) -- avoid what is being def'd capturing a stale version of itself.
     value <- eval valForm
-    modify $ M.insert (getStr $ symbol) value
+    modify $ M.insert (getStr symbol) value
     return $ LBool True
 
 evalSymbol :: LispValue -> Lisp LispValue
@@ -210,7 +210,7 @@ evalSymbol symbol = do
   env <- get
   case M.lookup (getStr symbol) env of
    Just value -> return value
-   Nothing    -> error $ "can't find symbol: " ++ (getStr symbol)
+   Nothing    -> return $ LError $ "Unbound symbol: " ++ (getStr symbol)
 
 unLList :: LispValue -> [LispValue]
 unLList (LList xs) = xs
@@ -226,10 +226,10 @@ evalLambda lambdaList = do
     else return $ LLambda Nothing        (unLList $ pos 1) env (pos 2)
 
 apply :: [LispValue] -> Lisp LispValue
-apply [] = error "apply : requires a function"
 apply ((LFunction _ f):args) = return $ f args
 apply (lform@(LLambda maybeFName argNames env body):args) =
   applyLambda lform args
+apply (e@(LError _):_) = return e
 apply _ = error "apply : requires a function"
 
 envPlus :: LispEnv -> [(LispValue, LispValue)] -> LispEnv
@@ -272,6 +272,8 @@ eval lispValue =
          evalDef (getPos lispValue 1) (getPos lispValue 2)),
         (lispValue `headIs` "if",
          evalIf (getPos lispValue 1) (getPos lispValue 2) (getPos lispValue 3)),
+        (lispValue `headIs` "quit",
+         error "user quit"),
         (isSymbol lispValue,   evalSymbol lispValue),
         (isListForm lispValue, evalListForm lispValue),
         (True, error (show lispValue))
@@ -280,12 +282,25 @@ eval lispValue =
 car :: LispValue
 car = LFunction "car" (\x -> case x of
                         [(LList (hd:_))] -> hd
-                        _              -> LBool False)
+                        _                -> invalidArg "car" x)
 
 cdr :: LispValue
 cdr = LFunction "cdr" (\x -> case x of
                         [(LList (_:tl))] -> LList tl
-                        _                -> LBool False)
+                        _                -> invalidArg "cdr" x)
+
+cons :: LispValue
+cons = LFunction "cons" (\x -> case x of
+                          [x1, (LList xs)] -> LList (x1:xs)
+                          -- this is non-conventional but I don't feel like including
+                          -- dotted pairs
+                          _                -> invalidArg "cons" x)
+
+-- eq :: LispValue
+-- eq = LFunction "
+
+list :: LispValue
+list = undefined
 
 defaultEnv :: LispEnv
 defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
@@ -299,7 +314,9 @@ defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          (">",  liftToLisp2 (\x y -> (x :: Double) > y)  ">"),
                          (">=", liftToLisp2 (\x y -> (x :: Double) >= y) ">="),
                          ("car", car),
-                         ("cdr", cdr)]
+                         ("cdr", cdr),
+                         ("cons", cons),
+                         ("not", liftToLisp1 not "not")]
 
 prompt :: String
 prompt = "λισπ> "
