@@ -57,8 +57,6 @@ enquote s = "\"" ++ s ++ "\""
 parseString :: Parsec String u SExp
 parseString = (SAtom . enquote) <$> stringLit
 
---parseList fails on "()"
-
 parseList :: Parsec String u SExp
 parseList = SList <$> (char '(' *> many space *> body <* many space <* char ')')
   where body = sepBy parseSExp (many1 space)
@@ -107,6 +105,9 @@ readSAtom s@(c:cs) =
               "#t" -> LBool True
               "#f" -> LBool False
               _    -> LSymbol s
+    '-'  -> if s == "-" || (not . isDigit) (s !! 1)
+            then LSymbol s
+            else LNumber (read s)
     d | isDigit d  -> LNumber (read s)
     _              -> LSymbol s
 
