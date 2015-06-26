@@ -2,11 +2,9 @@
 -- Implement the following:
 
 -- S-expression parsing Data.Parsec
--- read, eval, print
--- car, cdr, cons, eq, atom, quote, if
+-- eval,
 --  and, or as macros
 -- list, of course.
--- lambda -- include recursion
 
 -- def, defun, defmacro
 -- apply
@@ -216,7 +214,6 @@ unLList :: LispValue -> [LispValue]
 unLList (LList xs) = xs
 unLList _          = error "unLList needs a list"
 
--- HAS TO CAPTURE ENVIRONMENT OR THE WORLD IS FUCKED
 evalLambda :: LispValue -> Lisp LispValue
 evalLambda lambdaList = do
   env <- get
@@ -242,7 +239,6 @@ applyLambda lambdaObj args = do
   let (LLambda maybeFName argNames env body) = lambdaObj
   argValues <- sequence (map eval args)
   env0      <- get
---  let env1 = env0 `envPlus` zip argNames args
   let env1 = (env `envPlus` zip argNames args) `M.union` env0
   put env1
   result    <- eval body
@@ -292,15 +288,39 @@ cdr = LFunction "cdr" (\x -> case x of
 cons :: LispValue
 cons = LFunction "cons" (\x -> case x of
                           [x1, (LList xs)] -> LList (x1:xs)
-                          -- this is non-conventional but I don't feel like including
-                          -- dotted pairs
                           _                -> invalidArg "cons" x)
 
--- eq :: LispValue
--- eq = LFunction "
+lispEqList :: [LispValue] -> [LispValue] -> Bool
+lispEqList l1 l2 =
+  (length l1 == length l2) && (and $ zipWith lispEq l1 l2)
 
-list :: LispValue
-list = undefined
+lispEq :: LispValue -> LispValue -> Bool
+lispEq v1 v2 =
+  case (v1, v2) of
+    (LString s1, LString s2) -> s1 == s2
+    (LSymbol s1, LSymbol s2) -> s1 == s2
+    (LNumber d1, LNumber d2) -> d1 == d2
+    (LBool   b1, LBool   b2) -> b1 == b2
+    (LList   l1, LList   l2) -> lispEqList l1 l2
+    _                        -> False
+
+eq :: LispValue
+eq = LFunction "eq" (\x -> case x of
+                        [x1, x2] -> LBool $ lispEq x1 x2
+                        _        -> invalidArg "eq" x)
+
+lispAtom :: LispValue -> Bool
+lispAtom (LString _) = True
+lispAtom (LSymbol _) = True
+lispAtom (LNumber _) = True
+lispAtom (LBool   _) = True
+lispAtom (LList  []) = True
+lispAtom _           = False
+
+atom :: LispValue
+atom = LFunction "atom" (\x -> case x of
+                          [x1] -> LBool $ lispAtom x1
+                          _    -> invalidArg "atom" x)
 
 defaultEnv :: LispEnv
 defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
@@ -313,9 +333,11 @@ defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("<=", liftToLisp2 (\x y -> (x :: Double) <= y) "<="),
                          (">",  liftToLisp2 (\x y -> (x :: Double) > y)  ">"),
                          (">=", liftToLisp2 (\x y -> (x :: Double) >= y) ">="),
+                         ("atom", atom),
                          ("car", car),
                          ("cdr", cdr),
                          ("cons", cons),
+                         ("eq", eq),
                          ("not", liftToLisp1 not "not")]
 
 prompt :: String
