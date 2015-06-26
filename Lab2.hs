@@ -42,7 +42,7 @@ import Text.Parsec.Token (makeTokenParser, stringLiteral)
 data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 
 parseAtom :: Parsec String u SExp
-parseAtom = SAtom <$> many (satisfy (\c -> c `notElem` "()\"" && (not . isSpace) c))
+parseAtom = SAtom <$> many1 (satisfy (\c -> c `notElem` "()\"" && (not . isSpace) c))
 
 inStringLit :: Parsec String u Char
 inStringLit = (noneOf "\"\\") <|> string "\\\"" *> return '"' <|> string "\\\\"
