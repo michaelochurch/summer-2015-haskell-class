@@ -243,7 +243,7 @@ applyLambda lambdaObj args = do
   argValues <- sequence (map eval args)
   env0      <- get
 --  let env1 = env0 `envPlus` zip argNames args
-  let env1 = env `envPlus` zip argNames args
+  let env1 = (env `envPlus` zip argNames args) `M.union` env0
   put env1
   result    <- eval body
   put env0
