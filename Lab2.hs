@@ -13,6 +13,11 @@
 -- Lambda calculus / Church numeral demonstration.
 -- none of this needs to be tail recursive or fast.
 
+-- λισπ> (def f (lambda (x) (if (atom x) (cons x ()) x)))
+-- #t
+-- λισπ> (f (cons 2 ()))
+-- Lab2: apply : requires a function
+
 module Main where
 
 import Control.Applicative hiding (many, (<|>))
