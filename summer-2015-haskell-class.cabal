@@ -20,6 +20,7 @@ executable Lab1
   main-is:             Lab1.hs
   -- other-modules:       
   -- other-extensions:    
+  ghc-options:         -Wall -O2
   build-depends:       base >=4.7 && <5, random >=1.0
   -- hs-source-dirs:      
   default-language:    Haskell2010
@@ -28,6 +29,7 @@ executable Lab2
   main-is:             Lab2.hs
   -- other-modules:       
   -- other-extensions:    
+  ghc-options:         -Wall -O2
   build-depends:       base >=4.7 && <5, containers >= 0.5, mtl >2.1, parsec >= 3.1
   -- hs-source-dirs:      
   default-language:    Haskell2010
