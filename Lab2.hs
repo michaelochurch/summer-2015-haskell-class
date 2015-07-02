@@ -121,7 +121,7 @@ readSExp (SList l) = LList $ map readSExp l
 
 readString :: String -> LispValue
 readString s =
-  case parse parseSExp "(some lisp, I hope)" s of
+  case parse parseSExp "" s of
     Left e     -> LError $ "Parse Error: " ++ (show e)
     Right sExp -> readSExp sExp
 
