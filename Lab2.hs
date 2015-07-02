@@ -338,6 +338,11 @@ atom = LFunction "atom" (\x -> case x of
                           [x1] -> LBool $ lispAtom x1
                           _    -> invalidArg "atom" x)
 
+mkMacro :: LispValue
+mkMacro = LFunction "macro" (\x -> case x of
+                              [(LSymbol name), val] -> LMacro name val
+                              _    -> invalidArg "macro" x)
+
 macroAndFn :: LispValue
 macroAndFn = LFunction "and-fn" (\xs -> case xs of
                                     []         -> LBool True
@@ -370,6 +375,7 @@ defaultEnv = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("cons", cons),
                          ("eq", eq),
                          ("not", liftToLisp1 not "not"),
+                         ("macro", mkMacro),
                          ("pi", LNumber pi)]
 
 prompt :: String
