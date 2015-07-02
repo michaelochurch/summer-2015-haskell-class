@@ -18,6 +18,15 @@
 -- λισπ> (f (cons 2 ()))
 -- Lab2: apply : requires a function
 
+-- Another bug
+
+-- λισπ> (def z (lambda id (x) (id x)))
+-- #t
+-- λισπ> (z 3)
+-- < ERROR: Unbound symbol: id >
+-- the lambda doesn't know the name id.
+
+
 module Main where
 
 import Control.Applicative hiding (many, (<|>))
