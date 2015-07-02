@@ -1,5 +1,8 @@
 module Main where
 
+-- Import statements: necessary to use functions from modules like Data.Char
+-- (for toUpper) and System.Random (for randomRIO).
+
 import Data.Char
 import System.IO
 import System.Random
@@ -12,12 +15,13 @@ nLives = 4
 
 
 -- Defining a function, `oneThirdRoundingUp`, that will be used later on.
+
 oneThirdRoundingUp :: Int -> Int
 oneThirdRoundingUp n = (n + 2) `quot` 3
 
 
 -- Defining an *action*. "IO" means that the action is capable of stateful
--- effects. An `IO a` is an action that returns a value of type `a`. 
+-- effects. An `IO a` is an action that returns a value of type `a`.
 
 rollD6 :: IO Int
 rollD6 = randomRIO (1, 6)
@@ -29,13 +33,13 @@ rollD6 = randomRIO (1, 6)
 -- Exercise #2: what other conceivable type signatures could "roll a 6-sided
 -- die" have?
 
+
 -- Defining a datatype, `RollResult`.
 
 data RollResult = SnakeEyes | OneRolled | Doubles Int | Normal Int Int
                 deriving (Eq, Show)
 
--- This is an *algebraic data type*. Don't worry about the terminology just
--- yet. It's a tagged union that might be:
+-- This is an *algebraic data type*. It's a tagged union that might be:
 --   * the constant, `SnakeEyes`
 --   * the constant, `OneRolled`
 --   * a `Doubles` with an associated `Int`
@@ -76,7 +80,7 @@ endsRound rr = (lifeLoss rr) /= 0
 -- In English, "perform `rollD6` and call its return value `x1`, then perform
 -- `rollD6` (again) and call its return value `x2`, then return `[x1, x2]`".
 
--- This will be covered more formally in Lecture #3. 
+-- This will be covered more formally in Lecture #3.
 
 roll2d6 :: IO [Int]
 roll2d6 = do
@@ -86,12 +90,12 @@ roll2d6 = do
 
 
 -- Another function. A return of `Nothing` represents failure while a return of
--- `Just b` means a successful parse of `Bool` `b`. 
+-- `Just b` means a successful parse of `Bool` `b`.
 
 -- If you're not familiar with `Maybe`, it's a *parameterized* union type.
 --     `data Maybe a = Nothing | Just a`
 -- Typically `Nothing` represents null, an  "n/a" value, or failure. Unlike Java's
--- null, however, it's type-safe. 
+-- null, however, it's type-safe.
 
 readYN :: String -> Maybe Bool
 readYN "" = Nothing
@@ -110,7 +114,7 @@ flush :: IO ()
 flush = hFlush stdout
 
 -- A simple action to get human yes/no input.
--- Note the recursion on user error. 
+-- Note the recursion on user error.
 humanYN :: String -> IO Bool
 humanYN prompt = do
   putStr prompt
@@ -122,7 +126,7 @@ humanYN prompt = do
       putStrLn "Bad input! I only understand Y/N."
       humanYN prompt
 
--- This asks the user for input but ignores it. 
+-- This asks the user for input but ignores it.
 humanNoChoice :: String -> IO Bool
 humanNoChoice prompt = do
   putStr prompt
@@ -136,11 +140,11 @@ humanNoChoice prompt = do
 
 
 -- `blankLine` is an action that prints an empty line to the console. It does IO
--- but has nothing to return, so it returns `()`, pronounced "unit". 
+-- but has nothing to return, so it returns `()`, pronounced "unit".
 blankLine :: IO ()
 blankLine = putStrLn ""
 
--- A simple product type with record syntax. 
+-- A simple product type with record syntax.
 data RoundResult = RoundResult {pointsScored :: Int,
                                 livesLost    :: Int} deriving Show
 
@@ -170,7 +174,7 @@ playARound roundNum = loop 0 1
                 else do
                   let newScore = score + (scoreResult result)
                   putStrLn ("Score for this round: " ++ (show newScore)) >> blankLine
-                  loop newScore (rollNum + 1) 
+                  loop newScore (rollNum + 1)
             else return $ RoundResult {pointsScored = score,
                                        livesLost    = 0}
 
@@ -200,15 +204,22 @@ playAGame nLives = do
           printStatus lives score =
             putStrLn $ "Lives left: " ++ (show lives) ++ " Score: " ++ (show score)
 
--- Exercise #4: Currently, when you lose a life on rolling a 1, you see this at
+-- Exercise #4: Explain what's happening with this line, above:
+--   (RoundResult ptsScored lvsLost <- playARound roundNum)
+
+-- How would that language construct fail? Why is that not an issue in our
+-- particular case? When that does fail, what happens?
+
+
+-- Exercise #5: Currently, when you lose a life on rolling a 1, you see this at
 -- the console:
-          
+
 --    "You lost 1 lives."
 
 -- How would you change the code so that it says "You lost 1 life."?
 
 
--- Exercise #5: Define factorial at ghci like so.
+-- Exercise #6: Define factorial at ghci like so.
 
 -- ghci> let factorial :: Int -> Int; factorial n = foldl (*) 1 [1..n]
 
