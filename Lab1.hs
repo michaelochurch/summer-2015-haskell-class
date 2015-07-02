@@ -10,8 +10,8 @@ import System.Random
 
 -- Declaring a constant, `nLives`.
 
-nLives :: Int
-nLives = 4
+defaultNLives :: Int
+defaultNLives = 4
 
 
 -- Defining a function, `oneThirdRoundingUp`, that will be used later on.
@@ -234,4 +234,4 @@ playAGame nLives = do
 -- `IO ()`.
 
 main :: IO ()
-main = playAGame nLives
+main = playAGame defaultNLives
