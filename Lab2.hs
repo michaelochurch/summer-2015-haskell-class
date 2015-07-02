@@ -36,9 +36,6 @@ import Data.List (foldl', intercalate)
 import qualified Data.Map as M
 import System.IO (hFlush, stdout)
 import Text.Parsec
-import Text.Parsec.Language (haskellDef)
-import Text.Parsec.Token (makeTokenParser, stringLiteral)
-
 
 data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 
