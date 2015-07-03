@@ -91,7 +91,7 @@ lispShow lispValue =
       "< " ++ name ++ "λ " ++ (lispShow . LList $ params) ++ " . " ++ (lispShow body) ++ " >"
       where name = case maybeName of
                       Just sym -> (lispShow sym) ++ " = "
-                      Nothing -> ""      
+                      Nothing -> ""
     LError str       -> "< ERROR: " ++ str ++ " >"
     LMacro name _    -> "< macro called " ++ name ++ ">"
 
@@ -259,7 +259,6 @@ lookupSymbol symbol stack' globals =
   where str = getStr symbol
         failure = LError $ "Unbound symbol: " ++ (getStr symbol)
 
--- This is not right !! IT needs to look at locals as well!!
 evalSymbol :: LispValue -> Lisp LispValue
 evalSymbol symbol = do
   rtState <- get
@@ -314,12 +313,12 @@ runClosure self@(LispClosure maybeName params stack' body) argValues = do
 
 apply :: [LispValue] -> Lisp LispValue
 apply [] = error "apply : given an empty list"
-apply f@(form1:args) =
+apply form@(form1:args) =
   case form1 of
     LFunction (PrimFn _ f) -> return $ f args
     LClosure closure       -> runClosure closure args
     it@(LError _)          -> return it
-    _                      -> return $ invalidArg "(apply)" f
+    _                      -> return $ invalidArg "(apply)" form
 
 macroCheck :: LispValue -> Bool
 macroCheck (LMacro _ _) = True
