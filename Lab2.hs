@@ -23,6 +23,7 @@ import Data.List (intercalate)
 import qualified Data.Map as M
 import System.IO (hFlush, stdout)
 import Text.Parsec hiding (many, (<|>))
+import Text.Parsec.String (parseFromFile)
 
 data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 
@@ -55,8 +56,15 @@ parseQuoted = (\x -> SList [quoteAtom, x]) <$> (char '\'' *> parseSExp)
 parseSExp :: Parsec String u SExp
 parseSExp = parseQuoted <|> parseList <|> parseString <|> parseAtom
 
+parseSExps :: Parsec String u [SExp]
+parseSExps = (many space) *> endBy parseSExp (many space)
 
-
+loadSExps :: String -> IO (Either String [SExp])
+loadSExps filename = do
+  result <- parseFromFile parseSExps filename
+  case result of
+    Right sexps   -> return $ Right sexps
+    Left  anError -> return $ Left (show anError)
 
 data PrimFn = PrimFn {pfName :: String, unPrimFn :: ([LispValue] -> LispValue)}
 
@@ -506,9 +514,9 @@ initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("car", lispCar),
                          ("cdr", lispCdr),
                          ("cons", lispCons),
-                         ("eq", lispEq),
-                         ("not", liftToLisp1 not "not"),
+                         ("eq", lispEq), 
                          ("macro", mkMacro),
+                         ("not", liftToLisp1 not "not"),
                          ("pi", LNumber pi)]
 
 initRT :: RuntimeState
@@ -525,6 +533,19 @@ flush = hFlush stdout
 
 lispPrint :: LispValue -> IO ()
 lispPrint = putStrLn . lispShow
+
+execFile :: String -> Lisp LispValue
+execFile filename = do
+  fileParse <- lift $ loadSExps filename
+  case fileParse of
+    Left anError -> return $ LError anError
+    Right sexps  ->
+      go sexps where go [] = return $ LBool True
+                     go (sexp:remt) = do
+                       result <- eval (readSExp sexp)
+                       if isError result
+                         then return result
+                         else go remt
 
 repl :: Lisp ()
 repl = forever $ do lift $ putStr prompt
