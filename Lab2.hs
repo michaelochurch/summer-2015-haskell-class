@@ -1,15 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- Lisp design goals
+--p Lisp design goals
 
 -- eval,
 --  and, or as macros
 
--- defun, defmacro
 -- apply
 
 -- load a file that defines factorial and map and range. use at repl.
--- Lambda calculus / Church numeral demonstration.
 -- none of this needs to be tail recursive or fast.
 
 module Main where
