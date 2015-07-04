@@ -20,6 +20,16 @@
       (list (list 'lambda (list (car (car bindings))) (list 'let (cdr bindings) body))
             (car (cdr (car bindings))))))
 
+(defmacro and (&rest)
+  (if (eq &rest ()) #t
+      (list 'if (car &rest) (cons 'and (cdr &rest)) #f)))
+
+(defmacro or (&rest)
+  (if (eq &rest ()) #f
+    (let ((sym (gensym)))
+      (list 'let (list (list sym (car &rest)))
+             (list 'if sym sym (cons 'or (cdr &rest)))))))
+
 (defn factorial (n)
   (if (== n 0) 1 (* n (factorial (dec n)))))
 
@@ -39,3 +49,19 @@
 
 (defn unchurch (cn)
   ((cn inc) 0))
+
+(defn range (start end)
+  (if (>= start end) ()
+    (cons start (range (inc start) end))))
+
+(defn map (f list)
+  (if (eq list ()) ()
+    (cons (f (car list)) (map f (cdr list)))))
+
+(defn reduce (f z list)
+  (if (eq list ()) z
+    (reduce f (f z (car list)) (cdr list))))
+
+(defn +| (&rest) (reduce + 0 &rest))
+
+(defn *| (&rest) (reduce * 1 &rest))

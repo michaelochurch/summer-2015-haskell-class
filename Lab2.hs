@@ -492,21 +492,6 @@ mkMacro = LFunction $ PrimFn "macro"
                             [(LSymbol name), val] -> LMacro name val
                             _                     -> invalidArg "macro" x)
 
-macroAndFn :: LispValue
-macroAndFn = LFunction $ PrimFn "and-fn"
-                         (\xs -> case xs of
-                                 []         -> LBool True
-                                 (x:[])     -> x
-                                 (x1:x2:[]) -> LList [LSymbol "if",
-                                                      x1, x2, LBool False]
-                                 (x1:x2:xr) -> LList [LSymbol "if",
-                                                      x1,
-                                                      LList ((LSymbol "and"):x2:xr),
-                                                      LBool False])
-
-macroAnd :: LispValue
-macroAnd = LMacro "and" macroAndFn
-
 mkAction :: ([LispValue] -> Lisp LispValue) -> LispValue
 mkAction = LAction . LispAction
 
@@ -530,7 +515,6 @@ initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("<=", liftToLisp2 (\x y -> (x :: Double) <= y) "<="),
                          (">",  liftToLisp2 (\x y -> (x :: Double) > y)  ">"),
                          (">=", liftToLisp2 (\x y -> (x :: Double) >= y) ">="),
-                         ("and", macroAnd),
                          ("atom", lispAtom),
                          ("car", lispCar),
                          ("cdr", lispCdr),
