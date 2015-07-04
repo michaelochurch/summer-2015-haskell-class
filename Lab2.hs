@@ -95,7 +95,6 @@ lispShow lispValue =
     LError str       -> "< ERROR: " ++ str ++ " >"
     LMacro name _    -> "< macro called " ++ name ++ ">"
 
-
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =
   if length s >= 2 && (head s) == '"' && (last s) == '"'
@@ -202,8 +201,13 @@ undefSymbol :: LispValue -> Lisp ()
 undefSymbol symbol =
   globalBindings %= M.delete (getStr symbol)
 
+isError :: LispValue -> Bool
+isError (LError _) = True
+isError _          = False
+
 truthy :: LispValue -> Bool
 truthy (LBool False) = False
+truthy (LError _)    = error "giving errors truth values is a bad idea."
 truthy _             = True
 
 isSymbol :: LispValue -> Bool
@@ -218,9 +222,11 @@ evalIf :: LispValue -> LispValue -> LispValue -> Lisp LispValue
 evalIf condForm thenForm elseForm =
   do
     condVal <- eval condForm
-    if truthy condVal
-    then eval thenForm
-    else eval elseForm
+    if isError condVal
+    then return condVal
+    else if truthy condVal
+      then eval thenForm
+      else eval elseForm
 
 evalDef :: LispValue -> LispValue -> Lisp LispValue
 evalDef symbol valForm =
@@ -300,16 +306,45 @@ evalLambda lambdaForm = do
       currentStack = rtState ^. stack
   return $ LClosure $ LispClosure fName params currentStack body
 
+checkRestMarker :: LispValue -> Maybe LispValue
+checkRestMarker v@(LSymbol ('&':_)) = Just v
+checkRestMarker _                   = Nothing
+
+variarityCheck :: [LispValue] -> Maybe LispValue
+variarityCheck [] = Nothing
+variarityCheck xs = checkRestMarker $ last xs
+
+matchParamsAndValues :: [LispValue] -> [LispValue] -> Either LispValue LispFrame
+matchParamsAndValues params values =
+  let nParams = length params
+  in case variarityCheck params of
+    (Just rest) -> if (length values) >= nParams - 1
+                   then
+                     let params' = init params
+                         restValues = drop (nParams - 1) values
+                     in Right (M.fromList $ zip (map getStr (rest:params'))
+                                                ((LList restValues):values))
+                   else Left $ invalidArg "(arity mismatch)" $
+                        [LList params, LList values]
+    Nothing -> if (length params) == (length values)
+               then Right $ M.fromList $ zip (map getStr params) values
+               else Left  $ invalidArg "(arity mismatch)" $
+                    [LList params, LList values]
+
+        --M.fromList $ zip (map getStr params) argValues
+
 runClosure :: LispClosure -> [LispValue] -> Lisp LispValue
 runClosure self@(LispClosure maybeName params stack' body) argValues = do
-  let newFrame' = M.fromList $ zip (map getStr params) argValues
-      newFrame  = case maybeName of
-                    Just name -> M.insert (getStr name) (LClosure self) newFrame'
-                    Nothing   -> newFrame'
-  nFrames <- pushFrames (newFrame:stack')
-  result  <- eval body
-  popFrames nFrames
-  return result
+  case matchParamsAndValues params argValues of
+    Right newFrame' -> do
+      let newFrame = case maybeName of
+                       Just name -> M.insert (getStr name) (LClosure self) newFrame'
+                       Nothing   -> newFrame'
+      nFrames <- pushFrames (newFrame:stack')
+      result  <- eval body
+      popFrames nFrames
+      return result
+    Left anError -> return anError
 
 apply :: [LispValue] -> Lisp LispValue
 apply [] = error "apply : given an empty list"
@@ -318,15 +353,15 @@ apply form@(form1:args) =
     LFunction (PrimFn _ f) -> return $ f args
     LClosure closure       -> runClosure closure args
     it@(LError _)          -> return it
+    LMacro _ fnOrClosure   -> apply (fnOrClosure:args)
     _                      -> return $ invalidArg "(apply)" form
 
 macroCheck :: LispValue -> Bool
 macroCheck (LMacro _ _) = True
 macroCheck _            = False
 
-evalMacroForm _ = error $ "evalMacroForm : requires non-empty LList"
-
 evalListForm :: LispValue -> Lisp LispValue
+
 evalListForm lv@(LList lispValues) =
   case lispValues of
   []                     -> return lv -- empty list: self-evaluating.
@@ -334,10 +369,13 @@ evalListForm lv@(LList lispValues) =
   (v:vs) -> do
     f <- eval v
     if macroCheck f
-    then evalMacroForm lv
+    then do
+      form1 <- apply $ f:vs
+      eval form1
     else do
       args <- sequence (map eval vs)
       apply $ f:args
+
 evalListForm _ = error $ "evalListForm : requires an LList"
 
 cond :: [(Bool, a)] -> a
@@ -379,7 +417,6 @@ genstr = do
 
 eval :: LispValue -> Lisp LispValue
 eval lispValue =
-  -- TODO: replace this with gensyms
   do gs <- genstr
      verbosely (return $ gs ++ "[eval] " ++ (show lispValue))
        (\result -> return $ gs ++ "-----> " ++ (show result))
@@ -432,27 +469,26 @@ lispAtom = LFunction $ PrimFn "atom" (\x -> case x of
                           [x1] -> LBool $ primAtom x1
                           _    -> invalidArg "atom" x)
 
+mkMacro :: LispValue
+mkMacro = LFunction $ PrimFn "macro"
+                        (\x -> case x of
+                            [(LSymbol name), val] -> LMacro name val
+                            _                     -> invalidArg "macro" x)
 
--- comment out this macro stuff till I fix functions
+macroAndFn :: LispValue
+macroAndFn = LFunction $ PrimFn "and-fn"
+                         (\xs -> case xs of
+                                 []         -> LBool True
+                                 (x:[])     -> x
+                                 (x1:x2:[]) -> LList [LSymbol "if",
+                                                      x1, x2, LBool False]
+                                 (x1:x2:xr) -> LList [LSymbol "if",
+                                                      x1,
+                                                      LList ((LSymbol "and"):x2:xr),
+                                                      LBool False])
 
--- mkMacro :: LispValue
--- mkMacro = LFunction "macro" (\x -> case x of
---                               [(LSymbol name), val] -> LMacro name val
---                               _    -> invalidArg "macro" x)
-
--- macroAndFn :: LispValue
--- macroAndFn = LFunction "and-fn" (\xs -> case xs of
---                                     []         -> LBool True
---                                     (x:[])     -> x
---                                     (x1:x2:[]) -> LList [LSymbol "if",
---                                                         x1, x2, LBool False]
---                                     (x1:x2:xr) -> LList [LSymbol "if",
---                                                          x1,
---                                                          LList ((LSymbol "and"):x2:xr),
---                                                          LBool False])
-
--- macroAnd :: LispValue
--- macroAnd = LMacro "and" macroAndFn
+macroAnd :: LispValue
+macroAnd = LMacro "and" macroAndFn
 
 initGlobal :: LispFrame
 initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
@@ -465,14 +501,14 @@ initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("<=", liftToLisp2 (\x y -> (x :: Double) <= y) "<="),
                          (">",  liftToLisp2 (\x y -> (x :: Double) > y)  ">"),
                          (">=", liftToLisp2 (\x y -> (x :: Double) >= y) ">="),
---                         ("and", macroAnd),
+                         ("and", macroAnd),
                          ("atom", lispAtom),
                          ("car", lispCar),
                          ("cdr", lispCdr),
                          ("cons", lispCons),
                          ("eq", lispEq),
                          ("not", liftToLisp1 not "not"),
---                         ("macro", mkMacro),
+                         ("macro", mkMacro),
                          ("pi", LNumber pi)]
 
 initRT :: RuntimeState
