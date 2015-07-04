@@ -4,9 +4,8 @@
 
 -- eval,
 --  and, or as macros
--- list, of course.
 
--- def, defun, defmacro
+-- defun, defmacro
 -- apply
 
 -- load a file that defines factorial and map and range. use at repl.
@@ -73,17 +72,23 @@ instance Show PrimFn where
 
 type LispFrame = M.Map String LispValue
 
-
 data LispClosure = LispClosure {lcName   :: Maybe LispValue,
                                 lcParams :: [LispValue],
                                 lcStack  :: [LispFrame],
                                 lcBody   :: LispValue} deriving Show
 
+type Lisp a = StateT RuntimeState IO a
+
+data LispAction = LispAction ([LispValue] -> Lisp LispValue)
+
+instance Show LispAction where
+  show _ = "<action : not printable>"
+
 data LispValue = LString String | LSymbol String | LNumber Double |
                  LFunction PrimFn |
                  LClosure LispClosure |
                  LList [LispValue] | LBool Bool | LError String |
-                 LMacro String LispValue deriving Show
+                 LMacro String LispValue | LAction LispAction deriving Show
 
 lispShow :: LispValue -> String
 lispShow lispValue =
@@ -102,6 +107,7 @@ lispShow lispValue =
                       Nothing -> ""
     LError str       -> "< ERROR: " ++ str ++ " >"
     LMacro name _    -> "< macro called " ++ name ++ ">"
+    LAction _        -> "< action >"
 
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =
@@ -195,8 +201,6 @@ data RuntimeState = RuntimeState {_globalBindings :: LispFrame,
                                   _gensymCounter  :: Integer} deriving Show
 
 makeLenses ''RuntimeState
-
-type Lisp a = StateT RuntimeState IO a
 
 runLisp :: Lisp a -> RuntimeState -> IO (a, RuntimeState)
 runLisp lispAction rt = lispAction `runStateT` rt
@@ -358,11 +362,12 @@ apply :: [LispValue] -> Lisp LispValue
 apply [] = error "apply : given an empty list"
 apply form@(form1:args) =
   case form1 of
-    LFunction (PrimFn _ f) -> return $ f args
-    LClosure closure       -> runClosure closure args
-    it@(LError _)          -> return it
-    LMacro _ fnOrClosure   -> apply (fnOrClosure:args)
-    _                      -> return $ invalidArg "(apply)" form
+    LFunction (PrimFn _ f)   -> return $ f args
+    LClosure closure         -> runClosure closure args
+    it@(LError _)            -> return it
+    LMacro _ fnOrClosure     -> apply (fnOrClosure:args)
+    LAction (LispAction act) -> act args
+    _                        -> return $ invalidArg "(apply)" form
 
 macroCheck :: LispValue -> Bool
 macroCheck (LMacro _ _) = True
@@ -401,6 +406,9 @@ verbosely before after act = do
   (after result) >>= vPrint
   return result
 
+
+-- TODO: quit and set-verbose can be removed from evalCore.
+-- They don't need to be special forms but can be LispActions
 evalCore :: LispValue -> Lisp LispValue
 evalCore lispValue = do
   cond [(selfEvaluating lispValue,   return lispValue),
@@ -422,6 +430,9 @@ genstr = do
   n <- use gensymCounter
   gensymCounter += 1
   return $ "G__" ++ (show n)
+
+gensym :: Lisp LispValue
+gensym = fmap LSymbol genstr
 
 eval :: LispValue -> Lisp LispValue
 eval lispValue =
@@ -498,6 +509,18 @@ macroAndFn = LFunction $ PrimFn "and-fn"
 macroAnd :: LispValue
 macroAnd = LMacro "and" macroAndFn
 
+mkAction :: ([LispValue] -> Lisp LispValue) -> LispValue
+mkAction = LAction . LispAction
+
+gensymAction :: LispValue
+gensymAction = mkAction (\_ -> gensym)
+
+loadFileAction :: LispValue
+loadFileAction = mkAction (\list ->
+                            case list of
+                              [(LString filename)] -> execFile filename
+                              _ -> return $ invalidArg "load" list)
+
 initGlobal :: LispFrame
 initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("-",  liftToLisp2 (\x y -> (x :: Double) - y) "-"),
@@ -514,7 +537,9 @@ initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("car", lispCar),
                          ("cdr", lispCdr),
                          ("cons", lispCons),
-                         ("eq", lispEq), 
+                         ("eq", lispEq),
+                         ("gensym", gensymAction),
+                         ("load", loadFileAction),
                          ("macro", mkMacro),
                          ("not", liftToLisp1 not "not"),
                          ("pi", LNumber pi)]
