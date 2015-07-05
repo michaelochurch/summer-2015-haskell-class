@@ -65,3 +65,9 @@
 (defn +| (&rest) (reduce + 0 &rest))
 
 (defn *| (&rest) (reduce * 1 &rest))
+
+(defn flip (f)
+  (lambda (x y) (f y x)))
+
+(defn reverse (list)
+  (reduce (flip cons) () list))
