@@ -1,11 +1,17 @@
 {-# LANGUAGE TemplateHaskell #-}
 
---p Lisp design goals
+-- This is going to be used for Lab2 and Lab3, because some of the material
+-- isn't covered until later lectures.
 
--- eval,
---  and, or as macros
+-- Lab2 will focus on the parsing and high-level design.
 
--- apply
+-- Another Lab2 project: JSON parsing. Might set up a Scotty service, too.
+
+
+
+--Lisp design goals
+
+-- eval, apply
 
 -- load a file that defines factorial and map and range. use at repl.
 -- none of this needs to be tail recursive or fast.
