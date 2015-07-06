@@ -9,8 +9,13 @@
 -- Also: a "restricted IO" to introduce the concept.
 
 
--- NASTY BUG. Reproduction: ((macro 'foo (lambda (list) (or list))) 6)
--- It captures the list binding. MACROS SHOULD BE CONSIDERED BROKEN UNTIL THIS IS FIXED.
+-- NASTY BUG. Reproduction: ((macro 'foo (lambda (list) (or list))) 6) It
+-- captures the list binding. MACROS SHOULD BE CONSIDERED BROKEN UNTIL THIS IS
+-- FIXED.
+
+-- TWo ways to fix it. Have macroness as a "global state" or have it be an
+-- element of the closure. Either is more likely to work than this "have macros
+-- be values" approach that I tried. 
 
 --Lisp design goals
 
@@ -95,7 +100,7 @@ data LispValue = LString String | LSymbol String | LNumber Double |
                  LFunction PrimFn |
                  LClosure LispClosure |
                  LList [LispValue] | LBool Bool | LError String |
-                 LMacro String LispValue | LAction LispAction deriving Show
+                 LMacro LispClosure | LAction LispAction deriving Show
 
 lispShow :: LispValue -> String
 lispShow lispValue =
@@ -113,8 +118,12 @@ lispShow lispValue =
                       Just sym -> (lispShow sym) ++ " = "
                       Nothing -> ""
     LError str       -> "< ERROR: " ++ str ++ " >"
-    LMacro name _    -> "< macro called " ++ name ++ ">"
-    LAction _        -> "< action >"
+    LMacro (LispClosure maybeName params _stack' body) ->
+      "< MACRO: " ++ name ++ "λ " ++ (lispShow . LList $ params) ++ " . " ++ (lispShow body) ++ " >"
+      where name = case maybeName of
+                      Just sym -> (lispShow sym) ++ " = "
+                      Nothing -> ""
+    LAction _        -> "< ACTION >"
 
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =
@@ -317,14 +326,12 @@ isClosure _            = False
 
 evalLambda :: LispValue -> Lisp LispValue
 evalLambda lambdaForm = do
-  lift $ print "@10"
   rtState <- get
   let pos   = getPos lambdaForm
       (fName, params, body) = if isSymbol $ pos 1
                               then ((Just $ pos 1), (unLList $ pos 2), (pos 3))
                               else (Nothing       , (unLList $ pos 1), (pos 2))
       currentStack = rtState ^. stack
-  lift $ print "@50"
   return $ LClosure $ LispClosure fName params currentStack body
 
 checkRestMarker :: LispValue -> Maybe LispValue
@@ -372,14 +379,14 @@ apply form@(form1:args) =
     LFunction (PrimFn _ f)   -> return $ f args
     LClosure closure         -> runClosure closure args
     it@(LError _)            -> return it
-    LMacro _ (LClosure closure)
+    LMacro closure
                              -> runClosure closure args
                                 -- this can't be right
     LAction (LispAction act) -> act args
     _                        -> return $ invalidArg "(internal apply)" form
 
 macroCheck :: LispValue -> Bool
-macroCheck (LMacro _ _) = True
+macroCheck (LMacro _) = True
 macroCheck _            = False
 
 evalListForm :: LispValue -> Lisp LispValue
@@ -392,6 +399,7 @@ evalListForm lv@(LList lispValues) =
     f <- eval v
     if macroCheck f
     then do
+      -- This might be the locus of the problem.
       form1 <- apply $ f:vs
       eval form1
     else do
@@ -446,8 +454,8 @@ gensym = fmap LSymbol genstr
 eval :: LispValue -> Lisp LispValue
 eval lispValue =
   do gs <- genstr
-     verbosely (return $ gs ++ "[eval] " ++ (show lispValue))
-       (\result -> return $ gs ++ "-----> " ++ (show result))
+     verbosely (return $ gs ++ "[eval] " ++ (lispShow lispValue))
+       (\result -> return $ gs ++ "-----> " ++ (lispShow result))
        (evalCore lispValue)
 
 lispCar :: LispValue
@@ -509,8 +517,8 @@ lispAtom = LFunction $ PrimFn "atom" (\x -> case x of
 mkMacro :: LispValue
 mkMacro = LFunction $ PrimFn "macro"
                         (\x -> case x of
-                            [(LSymbol name), val] -> LMacro name val
-                            _                     -> invalidArg "macro" x)
+                            [(LClosure val)] -> LMacro val
+                            _                -> invalidArg "macro" x)
 
 mkAction :: ([LispValue] -> Lisp LispValue) -> LispValue
 mkAction = LAction . LispAction

@@ -1,12 +1,12 @@
 (def list (lambda (&rest) &rest))
 
-(def defn (macro 'defn
+(def defn (macro
   (lambda (fname args body)
      (list 'def fname (list 'lambda fname args body)))))
 
-(def defmacro (macro 'defmacro
+(def defmacro (macro
   (lambda (fname args body)
-     (list 'def fname (list 'macro (list 'quote fname) (list 'lambda fname args body))))))
+     (list 'def fname (list 'macro (list 'lambda fname args body))))))
 
 (defn dec (n) (- n 1))
 
