@@ -6,8 +6,11 @@
 -- Lab2 will focus on the parsing and high-level design.
 
 -- Another Lab2 project: JSON parsing. Might set up a Scotty service, too.
+-- Also: a "restricted IO" to introduce the concept.
 
 
+-- NASTY BUG. Reproduction: ((macro 'foo (lambda (list) (or list))) 6)
+-- It captures the list binding. MACROS SHOULD BE CONSIDERED BROKEN UNTIL THIS IS FIXED.
 
 --Lisp design goals
 
@@ -314,12 +317,14 @@ isClosure _            = False
 
 evalLambda :: LispValue -> Lisp LispValue
 evalLambda lambdaForm = do
+  lift $ print "@10"
   rtState <- get
   let pos   = getPos lambdaForm
       (fName, params, body) = if isSymbol $ pos 1
                               then ((Just $ pos 1), (unLList $ pos 2), (pos 3))
                               else (Nothing       , (unLList $ pos 1), (pos 2))
       currentStack = rtState ^. stack
+  lift $ print "@50"
   return $ LClosure $ LispClosure fName params currentStack body
 
 checkRestMarker :: LispValue -> Maybe LispValue
@@ -347,8 +352,6 @@ matchParamsAndValues params values =
                else Left  $ invalidArg "(arity mismatch)" $
                     [LList params, LList values]
 
-        --M.fromList $ zip (map getStr params) argValues
-
 runClosure :: LispClosure -> [LispValue] -> Lisp LispValue
 runClosure self@(LispClosure maybeName params stack' body) argValues = do
   case matchParamsAndValues params argValues of
@@ -369,9 +372,11 @@ apply form@(form1:args) =
     LFunction (PrimFn _ f)   -> return $ f args
     LClosure closure         -> runClosure closure args
     it@(LError _)            -> return it
-    LMacro _ fnOrClosure     -> apply (fnOrClosure:args)
+    LMacro _ (LClosure closure)
+                             -> runClosure closure args
+                                -- this can't be right
     LAction (LispAction act) -> act args
-    _                        -> return $ invalidArg "(apply)" form
+    _                        -> return $ invalidArg "(internal apply)" form
 
 macroCheck :: LispValue -> Bool
 macroCheck (LMacro _ _) = True
@@ -479,6 +484,15 @@ lispEq = LFunction $ PrimFn "eq" (\x -> case x of
                         [x1, x2] -> LBool $ primEq x1 x2
                         _        -> invalidArg "eq" x)
 
+lispEval :: LispValue
+lispEval = LAction $ LispAction (\vs -> case vs of
+                                    [v] -> eval v
+                                    _   -> return $ invalidArg "eval" vs)
+
+lispError :: LispValue
+lispError = LFunction $ (PrimFn "error" (\vs ->
+                             LError (intercalate " " (map lispShow vs))))
+
 primAtom :: LispValue -> Bool
 primAtom (LString _) = True
 primAtom (LSymbol _) = True
@@ -526,6 +540,8 @@ initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("cdr", lispCdr),
                          ("cons", lispCons),
                          ("eq", lispEq),
+                         ("error", lispError),
+                         ("eval", lispEval),
                          ("gensym", gensymAction),
                          ("load", loadFileAction),
                          ("macro", mkMacro),

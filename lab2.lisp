@@ -20,6 +20,10 @@
       (list (list 'lambda (list (car (car bindings))) (list 'let (cdr bindings) body))
             (car (cdr (car bindings))))))
 
+(defn caar (x) (car (car x)))
+
+(defn cadr (x) (car (cdr x)))
+
 (defmacro and (&rest)
   (if (eq &rest ()) #t
       (list 'if (car &rest) (cons 'and (cdr &rest)) #f)))
@@ -29,6 +33,11 @@
     (let ((sym (gensym)))
       (list 'let (list (list sym (car &rest)))
              (list 'if sym sym (cons 'or (cdr &rest)))))))
+
+(defmacro cond (&rest)
+  (if (eq &rest ()) (list 'error "cond: match failure")
+    (list 'if (caar &rest) (cadr (car &rest))
+          (cons 'cond (cdr &rest)))))
 
 (defn factorial (n)
   (if (== n 0) 1 (* n (factorial (dec n)))))
@@ -71,3 +80,26 @@
 
 (defn reverse (list)
   (reduce (flip cons) () list))
+
+(defn last (list)
+  (if (eq list ())
+    (error "last: applied to empty list")
+    (reduce (lambda (x y) y) (car list) (cdr list))))
+
+(defn butlast (list)
+  (if (or (eq list ()) (eq (cdr list) ()))
+      ()
+      (cons (car list) (butlast (cdr list)))))
+
+(defn append (list1 list2)
+  (if (eq list1 ()) 
+      list2
+      (cons (car list1) (append (cdr list1) list2))))
+
+(defn concat (lists)
+  (reduce append () lists))
+
+(defn apply (f &rest)
+  (if (eq &rest ())
+    (f)
+    (eval (cons f (last &rest)))))
