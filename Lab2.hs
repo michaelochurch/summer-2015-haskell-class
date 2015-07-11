@@ -39,7 +39,7 @@ import Text.Parsec.String (parseFromFile)
 data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 
 parseAtom :: Parsec String u SExp
-parseAtom = SAtom <$> many1 (satisfy (\c -> c `notElem` "()\"" && (not . isSpace) c))
+parseAtom = SAtom <$> many1 (satisfy (\c -> c `notElem` "()\";" && (not . isSpace) c))
 
 inStringLit :: Parsec String u Char
 inStringLit = (noneOf "\"\\") <|> string "\\\"" *> return '"' <|> string "\\\\"
@@ -67,8 +67,17 @@ parseQuoted = (\x -> SList [quoteAtom, x]) <$> (char '\'' *> parseSExp)
 parseSExp :: Parsec String u SExp
 parseSExp = parseQuoted <|> parseList <|> parseString <|> parseAtom
 
+ignore :: Parsec String u a -> Parsec String u ()
+ignore parser = parser *> return ()
+
+parseComment :: Parsec String u ()
+parseComment = char ';' *> (ignore $ manyTill anyChar ((ignore $ char '\n') <|> eof))
+
+parseInert :: Parsec String u ()
+parseInert = ignore $ many (ignore space <|> parseComment)
+
 parseSExps :: Parsec String u [SExp]
-parseSExps = (many space) *> endBy parseSExp (many space)
+parseSExps = parseInert *> endBy parseSExp parseInert
 
 loadSExps :: String -> IO (Either String [SExp])
 loadSExps filename = do
