@@ -1,12 +1,18 @@
 (def list (lambda (&rest) &rest))
 
-(def defn (macro
+(def defn
   (lambda (fname args body)
-     (list 'def fname (list 'lambda fname args body)))))
+     (list 'def fname (list 'lambda fname args body))))
 
-(def defmacro (macro
+(set-macro defn)
+
+(def defmacro
   (lambda (fname args body)
-     (list 'def fname (list 'macro (list 'lambda fname args body))))))
+    (list 'do 
+          (list 'def fname (list 'lambda fname args body))
+          (list 'set-macro fname #t))))  
+
+(set-macro defmacro #t)
 
 (defn dec (n) (- n 1))
 
@@ -78,14 +84,12 @@
 (defn flip (f)
   (lambda (x y) (f y x)))
 
-(defn reverse (list)
-  (reduce (flip cons) () list))
-
 (defn last (list)
   (if (eq list ())
     (error "last: applied to empty list")
     (reduce (lambda (x y) y) (car list) (cdr list))))
 
+;; THIS IS FAILING BECAUSE (or expands badly in the if statement)
 (defn butlast (list)
   (if (or (eq list ()) (eq (cdr list) ()))
       ()

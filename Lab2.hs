@@ -1,21 +1,13 @@
-{-# LANGUAGE TemplateHaskell #-}
-
--- This is going to be used for Lab2 and Lab3, because some of the material
--- isn't covered until later lectures.
-
--- Lab2 will focus on the parsing and high-level design.
-
--- Another Lab2 project: JSON parsing. Might set up a Scotty service, too.
--- Also: a "restricted IO" to introduce the concept.
-
+{-# LANGUAGE FlexibleInstances, TemplateHaskell, TupleSections #-}
 
 -- NASTY BUG. Reproduction: ((macro 'foo (lambda (list) (or list))) 6) It
 -- captures the list binding. MACROS SHOULD BE CONSIDERED BROKEN UNTIL THIS IS
 -- FIXED.
 
--- TWo ways to fix it. Have macroness as a "global state" or have it be an
--- element of the closure. Either is more likely to work than this "have macros
--- be values" approach that I tried. 
+-- LESSON learned: Macros can't exist at runtime. Expand all macros before execution.
+
+-- λισπ> ((lambda (x) (reverse x)) '(1 2 3))
+--        (3.0 1.0 2.0 3.0)
 
 --Lisp design goals
 
@@ -32,6 +24,7 @@ import Control.Monad.State
 import Data.Char (isDigit, isSpace)
 import Data.List (intercalate)
 import qualified Data.Map as M
+import qualified Data.Set as S
 import System.IO (hFlush, stdout)
 import Text.Parsec hiding (many, (<|>))
 import Text.Parsec.String (parseFromFile)
@@ -91,6 +84,12 @@ data PrimFn = PrimFn {pfName :: String, unPrimFn :: ([LispValue] -> LispValue)}
 instance Show PrimFn where
   show (PrimFn name _) = "< prim. function called " ++ name ++ " >"
 
+class LispShow a where
+  lispShow :: a -> String
+
+instance LispShow String where
+  lispShow = show
+
 type LispFrame = M.Map String LispValue
 
 data LispClosure = LispClosure {lcName   :: Maybe LispValue,
@@ -109,30 +108,33 @@ data LispValue = LString String | LSymbol String | LNumber Double |
                  LFunction PrimFn |
                  LClosure LispClosure |
                  LList [LispValue] | LBool Bool | LError String |
-                 LMacro LispClosure | LAction LispAction deriving Show
+                 LAction LispAction deriving Show
 
-lispShow :: LispValue -> String
-lispShow lispValue =
-  case lispValue of
-    LString str      -> show str
-    LSymbol sym      -> sym
-    LNumber d        -> show d
-    LFunction primFn -> show primFn
-    LList lst        -> "(" ++ intercalate " " (map lispShow lst) ++ ")"
-    LBool True       -> "#t"
-    LBool False      -> "#f"
-    LClosure (LispClosure maybeName params _stack' body) ->
-      "< " ++ name ++ "λ " ++ (lispShow . LList $ params) ++ " . " ++ (lispShow body) ++ " >"
-      where name = case maybeName of
-                      Just sym -> (lispShow sym) ++ " = "
-                      Nothing -> ""
-    LError str       -> "< ERROR: " ++ str ++ " >"
-    LMacro (LispClosure maybeName params _stack' body) ->
-      "< MACRO: " ++ name ++ "λ " ++ (lispShow . LList $ params) ++ " . " ++ (lispShow body) ++ " >"
-      where name = case maybeName of
-                      Just sym -> (lispShow sym) ++ " = "
-                      Nothing -> ""
-    LAction _        -> "< ACTION >"
+lispShowStack :: [LispFrame] -> String
+lispShowStack stack =
+  intercalate "\n" (map (\frame -> show $ M.keys frame) stack)
+
+instance LispShow LispClosure where
+  lispShow (LispClosure maybeSym params stack body) =
+    "< " ++ name ++  "λ " ++ (lispShow . LList $ params) ++ " . " ++
+    (lispShow body) ++ " : " ++ (lispShowStack stack) ++ " >"
+    where name = case maybeSym of
+                   Just sym -> (lispShow sym) ++ " = "
+                   Nothing -> ""
+
+instance LispShow LispValue where
+  lispShow lispValue =
+    case lispValue of
+      LString str      -> show str
+      LSymbol sym      -> sym
+      LNumber d        -> show d
+      LFunction primFn -> show primFn
+      LList lst        -> "(" ++ intercalate " " (map lispShow lst) ++ ")"
+      LBool True       -> "#t"
+      LBool False      -> "#f"
+      LClosure closure -> lispShow closure
+      LError str       -> "< ERROR: " ++ str ++ " >"
+      LAction _        -> "< ACTION >"
 
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =
@@ -216,11 +218,19 @@ getPos :: LispValue -> Int -> LispValue
 getPos (LList xs) n = xs !! n
 getPos _          _ = error "getPos : requires an LList"
 
+getPosMaybe :: LispValue -> Int -> Maybe LispValue
+getPosMaybe (LList xs) n =
+  case drop n xs of
+    []    -> Nothing
+    (x:_) -> Just x
+getPosMaybe _          _ = error "getPos : requires an LList"
+
 getStr :: LispValue -> String
 getStr (LSymbol str) = str
 getStr _             = error "getStr : requires an LSymbol"
 
 data RuntimeState = RuntimeState {_globalBindings :: LispFrame,
+                                  _macros         :: S.Set String,
                                   _verbose        :: Bool,
                                   _stack          :: [LispFrame],
                                   _gensymCounter  :: Integer} deriving Show
@@ -273,11 +283,23 @@ evalDef symbol valForm =
     defineSymbol symbol value
     return $ LBool True
 
-evalSetVerbose :: LispValue -> Lisp LispValue
+evalSetVerbose :: Maybe LispValue -> Lisp LispValue
 evalSetVerbose condForm = do
-  let bool = truthy condForm
+  let bool =
+        case condForm of
+          Nothing -> True
+          Just cf -> truthy cf
   verbose .= bool
   return $ LBool bool
+
+evalSetMacro :: LispValue -> Maybe LispValue -> Lisp LispValue
+evalSetMacro symbol value = do
+  let res = case value of
+               Nothing  -> True
+               Just sym -> truthy sym
+  macros . at (getStr symbol) .= (if res then Just () else Nothing)
+  return $ LBool res
+
 
 filterMap :: (a -> Maybe b) -> [a] -> [b]
 filterMap f xs =
@@ -307,7 +329,8 @@ evalSymbol symbol = do
   rtState <- get
   let stack'  = rtState ^. stack
       globals = rtState ^. globalBindings
-  return $ lookupSymbol symbol stack' globals
+  let result = lookupSymbol symbol stack' globals
+  return result
 
 unLList :: LispValue -> [LispValue]
 unLList (LList xs) = xs
@@ -381,41 +404,53 @@ runClosure self@(LispClosure maybeName params stack' body) argValues = do
       return result
     Left anError -> return anError
 
-apply :: [LispValue] -> Lisp LispValue
-apply [] = error "apply : given an empty list"
-apply form@(form1:args) =
-  case form1 of
-    LFunction (PrimFn _ f)   -> return $ f args
-    LClosure closure         -> runClosure closure args
-    it@(LError _)            -> return it
-    LMacro closure
-                             -> runClosure closure args
-                                -- this can't be right
-    LAction (LispAction act) -> act args
-    _                        -> return $ invalidArg "(internal apply)" form
-
-macroCheck :: LispValue -> Bool
-macroCheck (LMacro _) = True
-macroCheck _            = False
+macroCheck :: LispValue -> Lisp Bool
+macroCheck (LSymbol str) = (S.member str) <$> use macros
+macroCheck _             = return False
 
 evalListForm :: LispValue -> Lisp LispValue
-
 evalListForm lv@(LList lispValues) =
   case lispValues of
-  []                     -> return lv -- empty list: self-evaluating.
-  ((LSymbol "lambda"):_) -> evalLambda lv
+  -- The empty list is "self-evaluating".
+  []                     -> return lv
   (v:vs) -> do
-    f <- eval v
-    if macroCheck f
-    then do
-      -- This might be the locus of the problem.
-      form1 <- apply $ f:vs
-      eval form1
-    else do
-      args <- sequence (map eval vs)
-      apply $ f:args
+    f    <- eval v
+    args <- mapM eval vs
+    case f of
+      LFunction (PrimFn _ fn)  -> return $ fn args
+      it@(LError _)            -> return it
+      LAction (LispAction act) -> act args
+      LClosure closure         -> runClosure closure args
+      _ -> return $ LError $ (show f) ++ " is not a function."
 
 evalListForm _ = error $ "evalListForm : requires an LList"
+
+macroexpand1 :: LispValue -> Lisp LispValue
+macroexpand1 l@(LList (v:vs)) = do
+  mac <- macroCheck v
+  if mac
+  then do
+    f <- eval v
+    case f of
+      LClosure closure -> runClosure closure vs
+      _                -> error "any macro must be a closure"
+  else return l
+  
+macroexpand1 atomic = return atomic
+
+
+macroexpand :: LispValue -> Lisp LispValue
+macroexpand l@(LList (v:vs)) = do
+  mac <- macroCheck v
+  if mac
+  then do
+    next <- macroexpand1 l
+    macroexpand next
+  else do
+    w  <- macroexpand v  -- this is necessary to m'ex if there's a lambda expression
+    ws <- mapM macroexpand vs
+    return $ LList (w:ws)
+macroexpand atomic = return atomic
 
 cond :: [(Bool, a)] -> a
 cond [] = undefined
@@ -432,22 +467,47 @@ verbosely before after act = do
   (after result) >>= vPrint
   return result
 
+evalDo :: LispValue -> Lisp LispValue
+evalDo (LList lispValues) = do
+  res <- mapM eval (tail lispValues)
+  case res of
+    [] -> return $ LBool False
+    _  -> return $ last res
+evalDo _ = error "evalDo : requires an LList"
 
 -- TODO: quit and set-verbose can be removed from evalCore.
 -- They don't need to be special forms but can be LispActions
 evalCore :: LispValue -> Lisp LispValue
 evalCore lispValue = do
   cond [(selfEvaluating lispValue,   return lispValue),
+
         (lispValue `headIs` "quote", return $ getPos lispValue 1),
+
         (lispValue `headIs` "def",
          evalDef (getPos lispValue 1) (getPos lispValue 2)),
+
+        (lispValue `headIs` "do",
+         evalDo lispValue),
+        
         (lispValue `headIs` "if",
          evalIf (getPos lispValue 1) (getPos lispValue 2) (getPos lispValue 3)),
+
         (lispValue `headIs` "quit",
          error "user quit"),
-        (lispValue `headIs` "set-verbose", evalSetVerbose (getPos lispValue 1)),
+
+        (lispValue `headIs` "set-macro",
+         evalSetMacro (getPos lispValue 1) (getPosMaybe lispValue 2)),
+
+        (lispValue `headIs` "set-verbose",
+         evalSetVerbose (getPosMaybe lispValue 1)),
+
+        (lispValue `headIs` "lambda",
+         evalLambda lispValue),
+        
         (isSymbol lispValue,     evalSymbol lispValue),
+
         (isListForm lispValue,   evalListForm lispValue),
+        
         (True, error (show lispValue))
        ]
 
@@ -461,11 +521,17 @@ gensym :: Lisp LispValue
 gensym = fmap LSymbol genstr
 
 eval :: LispValue -> Lisp LispValue
-eval lispValue =
-  do gs <- genstr
-     verbosely (return $ gs ++ "[eval] " ++ (lispShow lispValue))
-       (\result -> return $ gs ++ "-----> " ++ (lispShow result))
-       (evalCore lispValue)
+eval lispValue = do
+  macroless <- macroexpand lispValue
+  isVerbose <- use verbose
+  if isVerbose
+  then do
+    gs <- genstr
+    lift $ print $ gs ++ "[eval] " ++ lispShow lispValue
+    res <- evalCore macroless
+    lift $ print $ gs ++ "------>" ++ lispShow res
+    return res
+  else evalCore macroless
 
 lispCar :: LispValue
 lispCar = LFunction $ PrimFn "car" (\x -> case x of
@@ -506,6 +572,17 @@ lispEval = LAction $ LispAction (\vs -> case vs of
                                     [v] -> eval v
                                     _   -> return $ invalidArg "eval" vs)
 
+lispMacroexpand1 :: LispValue
+lispMacroexpand1 = LAction $ LispAction (\vs -> case vs of
+                                            [v] -> macroexpand1 v
+                                            _   -> return $ invalidArg "macroexpand-1" vs)
+
+lispMacroexpand :: LispValue
+lispMacroexpand = LAction $ LispAction (\vs -> case vs of
+                                           [v] -> macroexpand v
+                                           _   -> return $ invalidArg "macroexpand-1" vs)
+
+
 lispError :: LispValue
 lispError = LFunction $ (PrimFn "error" (\vs ->
                              LError (intercalate " " (map lispShow vs))))
@@ -522,12 +599,6 @@ lispAtom :: LispValue
 lispAtom = LFunction $ PrimFn "atom" (\x -> case x of
                           [x1] -> LBool $ primAtom x1
                           _    -> invalidArg "atom" x)
-
-mkMacro :: LispValue
-mkMacro = LFunction $ PrimFn "macro"
-                        (\x -> case x of
-                            [(LClosure val)] -> LMacro val
-                            _                -> invalidArg "macro" x)
 
 mkAction :: ([LispValue] -> Lisp LispValue) -> LispValue
 mkAction = LAction . LispAction
@@ -561,12 +632,14 @@ initGlobal = M.fromList [("+",  liftToLisp2 (\x y -> (x :: Double) + y) "+"),
                          ("eval", lispEval),
                          ("gensym", gensymAction),
                          ("load", loadFileAction),
-                         ("macro", mkMacro),
+                         ("macroexpand-1", lispMacroexpand1),
+                         ("macroexpand", lispMacroexpand),
                          ("not", liftToLisp1 not "not"),
                          ("pi", LNumber pi)]
 
 initRT :: RuntimeState
 initRT = RuntimeState {_globalBindings = initGlobal,
+                       _macros         = S.empty,
                        _verbose        = False,
                        _stack          = [],
                        _gensymCounter  = 1}
