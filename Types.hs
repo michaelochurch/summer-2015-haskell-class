@@ -26,16 +26,18 @@ instance Show LispFunction where
 
 newtype LispError = LispError LispValue deriving Show
 
-invalidArg :: String -> [LispValue] -> LispError 
+invalidArg :: String -> [LispValue] -> LispError
 invalidArg name vals =
   LispError $ LVString $ "Invalid argument: " ++ name ++ "; " ++ (intercalate " " $ map show vals) ++ ")"
 
 data LispState = Form LispValue | Value LispValue |
+                 StateList [LispState] Int |
                  Apply LispFunction [LispValue] deriving Show
 
 type LispFrame = M.Map String LispValue
 
 data LispEnv = LispEnv {_stack         :: [LispFrame],
+                        _globals       :: LispFrame,
                         _gensymCounter :: Integer,
                         _macros        :: S.Set String} deriving Show
 
@@ -47,8 +49,11 @@ runLisp :: Lisp a -> LispEnv -> IO (Either LispError a, LispEnv)
 runLisp lispAction env =
   (runExceptT lispAction) `runStateT` env
 
+lispFail :: LispError -> Lisp a
+lispFail le = ExceptT $ StateT $ \s -> return (Left le, s)
+
 emptyEnv :: LispEnv
-emptyEnv = LispEnv [] 1 (S.empty)
+emptyEnv = LispEnv [] M.empty 1 S.empty
 
 tryLisp :: Lisp a -> IO (Either LispError a, LispEnv)
 tryLisp act = act `runLisp` emptyEnv
