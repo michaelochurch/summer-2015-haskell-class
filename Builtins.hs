@@ -10,6 +10,9 @@ dSum = sum
 plus :: LispFunction
 plus = liftFunction dSum "+"
 
+-- dNumEq :: [Double] -> Double
+-- dNumEq [d1, d2] = 
+
 globalBuiltins :: M.Map String LispValue
 globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("pi", LVNumber pi)]

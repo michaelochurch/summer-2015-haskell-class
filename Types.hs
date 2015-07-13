@@ -72,9 +72,15 @@ instance Liftable Bool where
   fromLisp (LVBool x) = Just x
   fromLisp _         = Nothing
 
-liftFunction :: (Liftable a, Liftable b) => ([a] -> b) -> String -> LispFunction
-liftFunction f name = LFPrimitive name f1
+-- TODO: add arity checking (for functions like not, eq, etc.)
+liftFunction :: (Liftable a, Liftable b) => ([a] -> b) -> String -> Maybe Int -> LispFunction
+liftFunction f name arity = LFPrimitive name f1
   where f1 xs =
           case mapM fromLisp xs of
-            Just vs -> Right $ toLisp $ f vs
+            Just vs ->
+              Right $ toLisp $ f vs
             Nothing -> Left $ invalidArg name xs
+        -- arityCheck =
+        --   case arity of
+        --    Nothing -> True
+        --    Just n  -> 
