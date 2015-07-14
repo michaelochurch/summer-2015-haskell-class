@@ -7,6 +7,7 @@ June 29 - September 10, 2015; Chicago, IL
 * [Lecture 2 on July 1](https://docs.google.com/presentation/d/17PCpozzLOsdk99XqA47vvImEHZTSkKs-9wyUJq7Ftks/edit#slide=id.p). Covered: user-defined data types and motivations for using them, sum and product types, pattern matching. 
 * [Lab 1 on July 6](https://docs.google.com/presentation/d/1K4M9Fzqa9FD2druXJrfRpHd6TTeyy3o3JguWHi1yWSc/edit?usp=sharing). Covered: structure of a single-module project, ```ghc``` and some basic console I/O. 
 * [Lecture 3 on July 8](https://docs.google.com/presentation/d/1OUWDyCEDKlVFNmAn4Ja7HCkrFV_Kc1ucwyMEvOBCap8/edit?usp=sharing). Covered: review of anonymous functions, type unification, and an introduction to Haskell's laziness. 
+* [Lecture 4 on July 13](https://docs.google.com/presentation/d/1FIZX9BF-isjDkAN4D96KpAdzBNJ9bVQ1sYh3bqF8DO8/edit?usp=sharing). Covered: weak head normal form (WHNF) and list functions. 
 
 ## Lecture videos
 * [Lecture 1 video](https://www.youtube.com/watch?v=ZoBOUqS1jgI)
