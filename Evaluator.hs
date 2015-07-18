@@ -13,11 +13,15 @@ data LispState = Form LispValue | Value LispValue |
                deriving Show
 
 
-specialForms = S.Set String
+specialForms :: S.Set String
 specialForms = S.fromList ["def", "do", "if", "lambda", "quote"]
 
-isSpecialForm :: LispValue -> Bool
-isSpecialForm (LVList (LVSymbol str)) = str `S.elem` specialForms
+specialFormCheck :: LispValue -> Maybe (String, [LispValue])
+specialFormCheck (LVList ((LVSymbol str):rest)) = 
+  if str `S.member` specialForms
+  then Just (str, rest)
+  else Nothing
+specialFormCheck _ = Nothing
 
 resolveSymbol :: String -> [LispFrame] -> LispFrame -> Maybe LispValue
 resolveSymbol str [] globals' = M.lookup str globals'
@@ -49,12 +53,20 @@ oneStep (Form (LVSymbol str)) = do
 -- empty list is "self-evaluating"
 oneStep (Form (LVList [])) = return $ Value (LVList [])
 
-oneStep f@(Form (LVList list)) =
-  if isSpecialForm f
-  then undefined
-  else return $ StateList (map Form list) 0
+oneStep (Form form@(LVList list)) =
+  case specialFormCheck form of
+    Just (string, rest) ->
+      return $ Special string (map Form rest)
+    Nothing -> return $ StateList (map Form list) 0
 
 oneStep (Form selfEval) = return $ Value selfEval
+
+oneStep (Special "quote" ((Form val):_)) =
+  return $ Value val
+
+oneStep (Special "quote" _) = error "illegal state : quote"
+
+oneStep (Special name _) = error $ "illegal state : unknown special form " ++ name
 
 oneStep (StateList states n) =
   if n >= length states
