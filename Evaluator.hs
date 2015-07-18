@@ -4,6 +4,20 @@ import Types
 
 import Control.Lens
 import qualified Data.Map as M
+import qualified Data.Set as S
+
+data LispState = Form LispValue | Value LispValue |
+                 StateList [LispState] Int |
+                 Apply LispFunction [LispValue] |
+                 Special String [LispState]
+               deriving Show
+
+
+specialForms = S.Set String
+specialForms = S.fromList ["def", "do", "if", "lambda", "quote"]
+
+isSpecialForm :: LispValue -> Bool
+isSpecialForm (LVList (LVSymbol str)) = str `S.elem` specialForms
 
 resolveSymbol :: String -> [LispFrame] -> LispFrame -> Maybe LispValue
 resolveSymbol str [] globals' = M.lookup str globals'
@@ -23,6 +37,7 @@ oneStep (Apply lispFn lispValues) =
         Right v   -> return $ Value v
     (LFAction _ action) ->
       Value `fmap` action lispValues
+    (LFClosure _ _ _) -> error "TODO"
 
 oneStep (Form (LVSymbol str)) = do
   theStack   <- use stack
@@ -34,12 +49,10 @@ oneStep (Form (LVSymbol str)) = do
 -- empty list is "self-evaluating"
 oneStep (Form (LVList [])) = return $ Value (LVList [])
 
-oneStep (Form (LVList list)) =
-  return $ StateList (map Form list) 0
-
-  -- 1. left-to-right evaluation of components
-
-  -- 2. turn into an application.
+oneStep f@(Form (LVList list)) =
+  if isSpecialForm f
+  then undefined
+  else return $ StateList (map Form list) 0
 
 oneStep (Form selfEval) = return $ Value selfEval
 

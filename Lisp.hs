@@ -2,7 +2,6 @@ module Main where
 
 import Control.Monad
 import Control.Monad.Except
---import Control.Monad.IO.Class (liftIO)
 import System.IO (hFlush, stdout)
 
 import Builtins

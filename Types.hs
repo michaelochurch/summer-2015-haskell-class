@@ -39,10 +39,6 @@ invalidArg :: String -> [LispValue] -> LispError
 invalidArg name vals =
   LispError $ LVString $ "Invalid argument: " ++ name ++ "; " ++ (intercalate " " $ map show vals) ++ ")"
 
-data LispState = Form LispValue | Value LispValue |
-                 StateList [LispState] Int |
-                 Apply LispFunction [LispValue] deriving Show
-
 type LispFrame = M.Map String LispValue
 
 data LispEnv = LispEnv {_stack         :: [LispFrame],
