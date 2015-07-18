@@ -17,12 +17,21 @@ isNumber :: LispValue -> Bool
 isNumber (LVNumber _) = True
 isNumber _            = False
 
+type Lisp a = ExceptT LispError (StateT LispEnv IO) a
+
 data LispFunction =
   LFPrimitive {lfpName :: String,
-               lfpApply :: [LispValue] -> Either LispError LispValue}
+               lfpApply :: [LispValue] -> Either LispError LispValue} |
+  LFAction    {lfaName :: String,
+               lfaApply :: [LispValue] -> Lisp LispValue} |
+  LFClosure   {lfcName :: String,
+               lfcStack :: [LispFrame],
+               lfcBody :: LispValue}
 
 instance Show LispFunction where
   show (LFPrimitive name _) = "< prim. fn named " ++ name ++ " >"
+  show (LFAction    name _) = "< prim. action named " ++ name ++ " >"
+  show (LFClosure   name _ _) = "< closure called " ++ name ++ " >"
 
 newtype LispError = LispError LispValue deriving Show
 
@@ -42,8 +51,6 @@ data LispEnv = LispEnv {_stack         :: [LispFrame],
                         _macros        :: S.Set String} deriving Show
 
 makeLenses ''LispEnv
-
-type Lisp a = ExceptT LispError (StateT LispEnv IO) a
 
 runLisp :: Lisp a -> LispEnv -> IO (Either LispError a, LispEnv)
 runLisp lispAction env =
@@ -73,14 +80,16 @@ instance Liftable Bool where
   fromLisp _         = Nothing
 
 -- TODO: add arity checking (for functions like not, eq, etc.)
-liftFunction :: (Liftable a, Liftable b) => ([a] -> b) -> String -> Maybe Int -> LispFunction
-liftFunction f name arity = LFPrimitive name f1
+liftFunction :: (Liftable a, Liftable b) => ([a] -> b) -> Maybe Int -> String -> LispFunction
+liftFunction f arity name = LFPrimitive name f1
   where f1 xs =
           case mapM fromLisp xs of
             Just vs ->
-              Right $ toLisp $ f vs
+              if arityCheck vs
+              then Right $ toLisp $ f vs
+              else Left $ invalidArg name xs
             Nothing -> Left $ invalidArg name xs
-        -- arityCheck =
-        --   case arity of
-        --    Nothing -> True
-        --    Just n  -> 
+        arityCheck xs =
+          case arity of
+           Nothing -> True
+           Just n  -> length xs == n

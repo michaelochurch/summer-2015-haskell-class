@@ -21,6 +21,8 @@ oneStep (Apply lispFn lispValues) =
       case apply lispValues of
         Left  err -> lispFail err
         Right v   -> return $ Value v
+    (LFAction _ action) ->
+      Value `fmap` action lispValues
 
 oneStep (Form (LVSymbol str)) = do
   theStack   <- use stack
