@@ -9,6 +9,7 @@ import qualified Data.Set as S
 data LispState = Form LispValue | Value LispValue |
                  StateList [LispState] Int |
                  Apply LispFunction [LispValue] |
+                 InsideClosure LispState Int |
                  Special String [LispState]
                deriving Show
 
@@ -58,7 +59,21 @@ oneStep (Apply lispFn lispValues) =
         Right v   -> return $ Value v
     (LFAction _ action) ->
       Value `fmap` action lispValues
-    (LFClosure _ _ _ _) -> error "TODO"
+    s@(LFClosure name stack' params body) -> do
+      let self       = LVFunction s
+          --TODO: need to handle &rest case intelligently.
+          newFrame   = M.fromList $ zip (name:params) (self:lispValues)
+          newStack   = newFrame:stack'
+      nFrames <- pushFrames (newFrame:newStack)
+      return $ InsideClosure (Form body) nFrames
+
+oneStep (InsideClosure value@(Value _) nFrames) = do
+  popFrames nFrames
+  return $ value
+
+oneStep (InsideClosure state nFrames) = do
+  state' <- oneStep state
+  return $ InsideClosure state' nFrames
 
 oneStep (Form (LVSymbol str)) = do
   theStack   <- use stack

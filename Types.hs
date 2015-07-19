@@ -26,7 +26,7 @@ data LispFunction =
                lfaApply :: [LispValue] -> Lisp LispValue} |
   LFClosure   {lfcName :: String,
                lfcStack :: [LispFrame],
-               lfcParams :: LispValue,
+               lfcParams :: [String],
                lfcBody :: LispValue}
 
 instance Show LispFunction where
@@ -101,7 +101,36 @@ genStr = do
   gensymCounter += 1
   return $ "G__" ++ (show n)
 
+-- Right now, we don't have pattern matching in lambdas so we assume an LVList
+-- of LVSymbols.
+paramNames :: LispValue -> Maybe [String]
+paramNames (LVList syms) =
+  forM syms $ \s ->
+    case s of
+      LVSymbol str -> Just str
+      _            -> Nothing
+
+paramNames _ = Nothing
+
 mkClosure :: String -> LispValue -> LispValue -> Lisp LispFunction
-mkClosure name params body = do
+mkClosure name paramList body = do
   stack' <- use stack
-  return $ LFClosure name stack' params body
+  case paramNames paramList of
+    Just params -> return $ LFClosure name stack' params body
+    Nothing    -> failWithString "mkClosure : given bad parameter list"
+
+pushFrame :: LispFrame -> Lisp ()
+pushFrame frame =
+  modify $ stack %~ (frame:)
+
+pushFrames :: [LispFrame] -> Lisp Int
+pushFrames frames = do
+  forM_ frames pushFrame
+  return $ length frames
+
+popFrame :: Lisp ()
+popFrame =
+  modify $ stack %~ tail
+
+popFrames :: Int -> Lisp ()
+popFrames n = replicateM_ n popFrame
