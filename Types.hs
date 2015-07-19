@@ -26,12 +26,13 @@ data LispFunction =
                lfaApply :: [LispValue] -> Lisp LispValue} |
   LFClosure   {lfcName :: String,
                lfcStack :: [LispFrame],
+               lfcParams :: LispValue,
                lfcBody :: LispValue}
 
 instance Show LispFunction where
   show (LFPrimitive name _) = "< prim. fn named " ++ name ++ " >"
   show (LFAction    name _) = "< prim. action named " ++ name ++ " >"
-  show (LFClosure   name _ _) = "< closure called " ++ name ++ " >"
+  show (LFClosure   name _ _ _) = "< closure called " ++ name ++ " >"
 
 newtype LispError = LispError LispValue deriving Show
 
@@ -54,6 +55,9 @@ runLisp lispAction env =
 
 lispFail :: LispError -> Lisp a
 lispFail le = ExceptT $ StateT $ \s -> return (Left le, s)
+
+failWithString :: String -> Lisp a
+failWithString = lispFail . LispError . LVString
 
 emptyEnv :: LispEnv
 emptyEnv = LispEnv [] M.empty 1 S.empty
@@ -89,3 +93,15 @@ liftFunction f arity name = LFPrimitive name f1
           case arity of
            Nothing -> True
            Just n  -> length xs == n
+
+
+genStr :: Lisp String
+genStr = do
+  n <- use gensymCounter
+  gensymCounter += 1
+  return $ "G__" ++ (show n)
+
+mkClosure :: String -> LispValue -> LispValue -> Lisp LispFunction
+mkClosure name params body = do
+  stack' <- use stack
+  return $ LFClosure name stack' params body
