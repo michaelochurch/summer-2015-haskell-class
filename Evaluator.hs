@@ -17,7 +17,7 @@ specialForms :: S.Set String
 specialForms = S.fromList ["def", "do", "if", "lambda", "quote"]
 
 specialFormCheck :: LispValue -> Maybe (String, [LispValue])
-specialFormCheck (LVList ((LVSymbol str):rest)) = 
+specialFormCheck (LVList ((LVSymbol str):rest)) =
   if str `S.member` specialForms
   then Just (str, rest)
   else Nothing
@@ -73,6 +73,7 @@ oneStep (InsideClosure value@(Value _) nFrames) = do
 
 oneStep (InsideClosure state nFrames) = do
   state' <- oneStep state
+  -- TODO: if the closure is a tail call, TCO can be done here.
   return $ InsideClosure state' nFrames
 
 oneStep (Form (LVSymbol str)) = do
