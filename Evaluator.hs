@@ -5,6 +5,7 @@ import Types
 import Control.Lens
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Safe (lastMay)
 
 data LispState = Form LispValue | Value LispValue |
                  StateList [LispState] Int |
@@ -48,6 +49,15 @@ undefineSymbol :: String -> Lisp ()
 undefineSymbol str =
   globals %= M.delete str
 
+mkFrame :: [String] -> [LispValue] -> [(String, LispValue)]
+mkFrame names values =
+  case lastMay names of
+   Just ('&':_) ->
+     let n          = length names
+         tailValues = drop (n - 1) values
+     in zip names $ (take (n - 1) values) ++ [LVList tailValues]
+   _            -> zip names values
+
 oneStep :: LispState -> Lisp LispState
 oneStep v@(Value _) = return v
 
@@ -61,8 +71,8 @@ oneStep (Apply lispFn lispValues) =
       Value `fmap` action lispValues
     s@(LFClosure name stack' params body) -> do
       let self       = LVFunction s
-          --TODO: need to handle &rest case intelligently.
-          newFrame   = M.fromList $ zip (name:params) (self:lispValues)
+          --TODO: need to handle TCO properly.
+          newFrame   = M.fromList $ mkFrame (name:params) (self:lispValues) 
           newStack   = newFrame:stack'
       nFrames <- pushFrames (newFrame:newStack)
       return $ InsideClosure (Form body) nFrames

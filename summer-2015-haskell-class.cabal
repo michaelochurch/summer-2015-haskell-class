@@ -31,7 +31,7 @@ executable Lisp
   -- other-extensions:
   ghc-options:         -Wall -O2
   build-depends:       base >=4.7 && <5, containers >= 0.5, lens >= 4.11, mtl >2.1, parsec >= 3.1,
-                       transformers >= 0.4
+                       safe >= 0.3, transformers >= 0.4
   -- hs-source-dirs:
   default-language:    Haskell2010
 
