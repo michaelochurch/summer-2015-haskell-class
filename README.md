@@ -16,3 +16,4 @@ June 29 - September 10, 2015; Chicago, IL
 * [Lab 1 video](https://www.youtube.com/watch?v=9ZxvLIJybzs)
 * [Lecture 3 video](https://www.youtube.com/watch?v=iuBwKIcC198)
 * [Lecture 4 video](https://www.youtube.com/watch?v=LVWrWT0JKSA)
+* [Lecture 5 video](https://www.youtube.com/watch?v=HGGEqc7zQvk)
