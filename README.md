@@ -9,6 +9,7 @@ June 29 - September 10, 2015; Chicago, IL
 * [Lecture 3 on July 8](https://docs.google.com/presentation/d/1OUWDyCEDKlVFNmAn4Ja7HCkrFV_Kc1ucwyMEvOBCap8/edit?usp=sharing). Covered: review of anonymous functions, type unification, and an introduction to Haskell's laziness. 
 * [Lecture 4 on July 13](https://docs.google.com/presentation/d/1FIZX9BF-isjDkAN4D96KpAdzBNJ9bVQ1sYh3bqF8DO8/edit?usp=sharing). Covered: weak head normal form (WHNF) and list functions. 
 * [Lecture 5 on July 16](https://docs.google.com/presentation/d/1Yx02f9OUSoaFgKCIg0uApZa9wuR-cIQk7b1Y_Hkg-4E/edit#slide=id.p). Covered: type classes such as ```Eq```, ```Ord```, and ```Monoid```. 
+* [Lecture 6 on July 20](https://docs.google.com/presentation/d/1UahLtttRrw0-lRByXD5rmtDnU50KTXBX9DN5VnRTupY/edit#slide=id.ga2fedb778_0_0). Covered: higher-kinded types and type classes ```Functor```, ```Applicative```, and ```Monad```. 
 
 ## Lecture videos
 * [Lecture 1 video](https://www.youtube.com/watch?v=ZoBOUqS1jgI)
