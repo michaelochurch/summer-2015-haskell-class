@@ -38,7 +38,10 @@ numCmp :: (Double -> Double -> Bool) -> String -> LispValue
 numCmp f str = LVFunction $ liftFunction (dCmp f) (Just 2) str
 
 quit :: LispFunction
-quit = LFAction "quit" (\_ -> error "user quit")
+quit = LFAction "quit" $ \_ -> error "user quit"
+
+gensym :: LispFunction
+gensym = LFAction "gensym" $ \_ -> fmap LVSymbol genStr
 
 globalBuiltins :: M.Map String LispValue
 globalBuiltins = M.fromList [("+", LVFunction plus),
@@ -51,6 +54,7 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("/=", numCmp (/=) "/="),
                              ("<" , numCmp (<)  "<"),
                              (">" , numCmp (>)  ">"),
+                             ("gensym", LVFunction gensym),
                              ("pi", LVNumber pi),
                              ("quit", LVFunction quit)]
 
