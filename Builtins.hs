@@ -1,5 +1,6 @@
 module Builtins where
 
+import Control.Lens
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Types
@@ -43,6 +44,17 @@ quit = LFAction "quit" $ \_ -> error "user quit"
 gensym :: LispFunction
 gensym = LFAction "gensym" $ \_ -> fmap LVSymbol genStr
 
+setMacroAction :: [LispValue] -> Lisp LispValue
+setMacroAction vals =
+  case vals of
+    [(LVSymbol name)] -> do
+      macros . at name .= Just ()
+      return $ LVBool True
+    _                 -> failWithString "set-macro! requires one symbol"
+
+setMacro :: LispFunction
+setMacro = LFAction "set-macro!" $ setMacroAction
+
 globalBuiltins :: M.Map String LispValue
 globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("-", LVFunction minus),
@@ -56,7 +68,8 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              (">" , numCmp (>)  ">"),
                              ("gensym", LVFunction gensym),
                              ("pi", LVNumber pi),
-                             ("quit", LVFunction quit)]
+                             ("quit", LVFunction quit),
+                             ("set-macro!", LVFunction setMacro)]
 
 initEnv :: LispEnv
 initEnv = LispEnv [] globalBuiltins 1 S.empty

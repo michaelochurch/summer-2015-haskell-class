@@ -94,7 +94,6 @@ liftFunction f arity name = LFPrimitive name f1
            Nothing -> True
            Just n  -> length xs == n
 
-
 genStr :: Lisp String
 genStr = do
   n <- use gensymCounter
