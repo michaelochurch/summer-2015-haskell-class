@@ -3,6 +3,7 @@ module Builtins where
 import Control.Lens
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Evaluator
 import Types
 
 dSum :: [Double] -> Double
@@ -55,6 +56,18 @@ setMacroAction vals =
 setMacro :: LispFunction
 setMacro = LFAction "set-macro!" $ setMacroAction
 
+macroexpandAction :: LispFunction
+macroexpandAction = LFAction "macroexpand" $ \vs ->
+  case vs of
+   [v] -> macroexpand v
+   _   -> failWithString "macroexpand requires 1 value"
+
+macroexpand1Action :: LispFunction
+macroexpand1Action = LFAction "macroexpand-1" $ \vs ->
+  case vs of
+   [v] -> macroexpand1 v
+   _   -> failWithString "macroexpand-1 requires 1 value"
+
 globalBuiltins :: M.Map String LispValue
 globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("-", LVFunction minus),
@@ -67,6 +80,8 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("<" , numCmp (<)  "<"),
                              (">" , numCmp (>)  ">"),
                              ("gensym", LVFunction gensym),
+                             ("macroexpand", LVFunction macroexpandAction),
+                             ("macroexpand-1", LVFunction macroexpand1Action),
                              ("pi", LVNumber pi),
                              ("quit", LVFunction quit),
                              ("set-macro!", LVFunction setMacro)]

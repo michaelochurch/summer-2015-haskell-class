@@ -76,7 +76,7 @@ oneStep (Apply lispFn lispValues) =
     s@(LFClosure name stack' params body) -> do
       let self       = LVFunction s
           --TODO: need to handle TCO properly.
-          newFrame   = M.fromList $ mkFrame (name:params) (self:lispValues) 
+          newFrame   = M.fromList $ mkFrame (name:params) (self:lispValues)
           newStack   = newFrame:stack'
       nFrames <- pushFrames (newFrame:newStack)
       return $ InsideClosure (Form body) nFrames
@@ -107,7 +107,7 @@ oneStep (Form form@(LVList list)) =
     Nothing -> do
       macro <- macroFormCheck form
       if macro
-      then error "To be implemented."
+      then error "Illegal state." -- macros should be expanded before we get here.
       else return $ StateList (map Form list) 0
 
 oneStep (Form selfEval) = return $ Value selfEval
@@ -173,10 +173,58 @@ oneStep (StateList states n) =
           state1 <- oneStep state'
           return $ StateList ((take n states) ++ [state1] ++ (drop (n+1) states)) n
 
-eval :: LispValue -> Lisp LispValue
-eval lv =
-  loop (Form lv)
+oneStepTillValue :: LispState -> Lisp LispValue
+oneStepTillValue ls =
+  loop ls
   where loop state' =
           case state' of
-           (Value v) -> return v
-           _ -> oneStep state' >>= loop
+            (Value v) -> return v
+            _         -> oneStep state' >>= loop
+
+-- eval0 :: Eval without macros (or after macroexpansion).
+eval0 :: LispValue -> Lisp LispValue
+eval0 lv = oneStepTillValue (Form lv)
+
+-- oneStep (Form (LVSymbol str)) = do
+--   theStack   <- use stack
+--   theGlobals <- use globals
+--   case resolveSymbol str theStack theGlobals of
+--    Just value -> return $ Value value
+--    Nothing    -> lispFail $ LispError (LVString $ "Can't resolve symbol: " ++ str)
+
+evalMacro :: LispValue -> Lisp LispValue
+evalMacro lv =
+  case lv of
+    LVList ((LVSymbol name):rest) -> do
+      theStack   <- use stack
+      theGlobals <- use globals
+      case resolveSymbol name theStack theGlobals of
+       Just (LVFunction f) -> oneStepTillValue (Apply f rest)
+       _ -> return lv
+    _ -> return lv
+
+macroexpand1 :: LispValue -> Lisp LispValue
+macroexpand1 lv = do
+  macro <- macroFormCheck lv
+  if macro
+  then evalMacro lv
+  else return lv
+
+macroexpand :: LispValue -> Lisp LispValue
+macroexpand lv = do
+  macro <- macroFormCheck lv
+  if macro
+  then do
+    lv' <- macroexpand1 lv
+    macroexpand1 lv'
+  else return lv
+
+-- macroexpandAll :: LispValue -> Lisp LispValue
+-- macroexpandAll lv = do
+
+
+eval :: LispValue -> Lisp LispValue
+eval value = do
+  -- FIXME : replace macroexpand with macroexpandAll once completed.
+  value' <- macroexpand value
+  eval0 value'
