@@ -24,6 +24,10 @@ specialFormCheck (LVList ((LVSymbol str):rest)) =
   else Nothing
 specialFormCheck _ = Nothing
 
+macroFormCheck :: LispValue -> Lisp Bool
+macroFormCheck (LVList ((LVSymbol str):_)) = (S.member str) `fmap` use macros
+macroFormCheck _ = return False
+
 (!!?) :: [a] -> Int -> Maybe a
 (!!?) list n =
   if n < 0 || n >= (length list)
@@ -100,7 +104,11 @@ oneStep (Form form@(LVList list)) =
   case specialFormCheck form of
     Just (string, rest) ->
       return $ Special string (map Form rest)
-    Nothing -> return $ StateList (map Form list) 0
+    Nothing -> do
+      macro <- macroFormCheck form
+      if macro
+      then error "To be implemented."
+      else return $ StateList (map Form list) 0
 
 oneStep (Form selfEval) = return $ Value selfEval
 
