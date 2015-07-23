@@ -133,3 +133,7 @@ popFrame =
 
 popFrames :: Int -> Lisp ()
 popFrames n = replicateM_ n popFrame
+
+purgeStack :: Lisp ()
+purgeStack =
+  modify $ stack .~ []

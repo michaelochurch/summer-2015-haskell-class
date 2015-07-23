@@ -29,8 +29,13 @@ repl1 = do liftIO $ putStr prompt
            result   <- tryRepl inString
            liftIO $ lispPrint result
 
+handleError :: LispError -> Lisp ()
+handleError lispError = do
+  liftIO $ lispPrint lispError
+  purgeStack
+
 repl :: Lisp ()
-repl = forever (repl1 `catchError` (\lispError -> liftIO $ lispPrint lispError))
+repl = forever (repl1 `catchError` handleError)
 
 main :: IO ()
 main = repl `runLisp` initEnv >> return ()
