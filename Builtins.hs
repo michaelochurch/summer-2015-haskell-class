@@ -1,9 +1,12 @@
 module Builtins where
 
 import Control.Lens
+import Control.Monad.Trans (liftIO)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Evaluator
+import Parser
+import Reader
 import Types
 
 dSum :: [Double] -> Double
@@ -39,6 +42,62 @@ dCmp _ _ = error "arity error in dCmp"
 numCmp :: (Double -> Double -> Bool) -> String -> LispValue
 numCmp f str = LVFunction $ liftFunction (dCmp f) (Just 2) str
 
+lNot :: [Bool] -> Bool
+lNot [True] = False
+lNot [False] = True
+lNot _ = error "arity error in lNot"
+
+lispNot :: LispFunction
+lispNot = liftFunction lNot (Just 1) "not"
+
+eq :: LispValue -> LispValue -> Bool
+eq (LVString v1) (LVString v2) = v1 == v2
+eq (LVSymbol v1) (LVSymbol v2) = v1 == v2
+eq (LVNumber v1) (LVNumber v2) = v1 == v2
+eq (LVBool   v1) (LVBool   v2) = v1 == v2
+eq (LVList   l1) (LVList   l2) =
+  (length l1 == length l2) && (and $ zipWith eq l1 l2)
+eq _             _             = False
+
+lispEq :: LispFunction
+lispEq = LFPrimitive "eq" $ \vs ->
+  case vs of
+    [v1, v2] -> Right (LVBool $ eq v1 v2)
+    _        -> Left  (LispError $ LVString "eq: requires two arguments")
+
+atom :: LispValue -> Bool
+atom (LVSymbol   _) = True
+atom (LVString   _) = True
+atom (LVNumber   _) = True
+atom (LVBool     _) = True
+atom (LVFunction _) = True
+atom (LVList    []) = True
+atom _              = False
+
+lispAtom :: LispFunction
+lispAtom = LFPrimitive "atom" $ \vs ->
+  case vs of
+   [v] -> Right $ LVBool $ atom v
+   _   -> Left  $ LispError $ LVString "atom: requires one argument"
+
+lispCar :: LispFunction
+lispCar = LFPrimitive "car" $ \vs ->
+  case vs of
+   [(LVList (x:_))] -> Right x
+   _                 -> Left $ LispError $ LVString "car: requires a non-empty list"
+
+lispCdr :: LispFunction
+lispCdr = LFPrimitive "cdr" $ \vs ->
+  case vs of
+   [(LVList (_:xs))] -> Right $ LVList xs
+   _                 -> Left $ LispError $ LVString "cdr: requires a non-empty list"
+
+lispCons :: LispFunction
+lispCons = LFPrimitive "cons" $ \vs ->
+  case vs of
+   [x, LVList xs] -> Right $ LVList (x:xs)
+   _              -> Left $ LispError $ LVString "cons: requires 2 args, 2nd must be list"
+
 quit :: LispFunction
 quit = LFAction "quit" $ \_ -> error "user quit"
 
@@ -68,6 +127,21 @@ macroexpand1Action = LFAction "macroexpand-1" $ \vs ->
    [v] -> macroexpand1 v
    _   -> failWithString "macroexpand-1 requires 1 value"
 
+execFile :: String -> Lisp LispValue
+execFile filename = do
+  parsedSExps <- liftIO $ loadSExps filename
+  case parsedSExps of
+   Left anError -> failWithString anError
+   Right sexps  -> do
+     mapM_ (eval . readSExp) sexps
+     return $ LVBool True
+
+loadFileAction :: LispFunction
+loadFileAction = LFAction "load-file" $ \vs ->
+  case vs of
+   [(LVString filename)] -> execFile filename
+   _                     -> failWithString "load-file: requires 1 string"
+
 globalBuiltins :: M.Map String LispValue
 globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("-", LVFunction minus),
@@ -79,9 +153,16 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("/=", numCmp (/=) "/="),
                              ("<" , numCmp (<)  "<"),
                              (">" , numCmp (>)  ">"),
+                             ("atom", LVFunction lispAtom),
+                             ("car", LVFunction lispCar),
+                             ("cdr", LVFunction lispCdr),
+                             ("cons", LVFunction lispCons),
+                             ("eq", LVFunction lispEq),
                              ("gensym", LVFunction gensym),
+                             ("load-file", LVFunction loadFileAction),
                              ("macroexpand", LVFunction macroexpandAction),
                              ("macroexpand-1", LVFunction macroexpand1Action),
+                             ("not", LVFunction lispNot),
                              ("pi", LVNumber pi),
                              ("quit", LVFunction quit),
                              ("set-macro!", LVFunction setMacro)]
