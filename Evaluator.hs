@@ -185,13 +185,6 @@ oneStepTillValue ls =
 eval0 :: LispValue -> Lisp LispValue
 eval0 lv = oneStepTillValue (Form lv)
 
--- oneStep (Form (LVSymbol str)) = do
---   theStack   <- use stack
---   theGlobals <- use globals
---   case resolveSymbol str theStack theGlobals of
---    Just value -> return $ Value value
---    Nothing    -> lispFail $ LispError (LVString $ "Can't resolve symbol: " ++ str)
-
 evalMacro :: LispValue -> Lisp LispValue
 evalMacro lv =
   case lv of
@@ -216,15 +209,21 @@ macroexpand lv = do
   if macro
   then do
     lv' <- macroexpand1 lv
-    macroexpand1 lv'
+    macroexpand lv'
   else return lv
 
--- macroexpandAll :: LispValue -> Lisp LispValue
--- macroexpandAll lv = do
-
+-- macroexpands a Lisp form with left-most outer-most macroexpansion.
+macroexpandAll :: LispValue -> Lisp LispValue
+macroexpandAll lv = do
+  lv1 <- macroexpand lv
+  case lv1 of
+   LVList subforms -> do
+     expandedForms <- mapM macroexpandAll subforms
+     return $ LVList expandedForms
+   _               -> return lv1
 
 eval :: LispValue -> Lisp LispValue
 eval value = do
   -- FIXME : replace macroexpand with macroexpandAll once completed.
-  value' <- macroexpand value
+  value' <- macroexpandAll value
   eval0 value'

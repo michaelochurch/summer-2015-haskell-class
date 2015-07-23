@@ -25,6 +25,64 @@
 
 (defn cadr (x) (car (cdr x)))
 
+(defmacro let (bindings body)
+  (if (eq bindings ()) body
+      (list (list 'lambda (list (car (car bindings))) (list 'let (cdr bindings) body))
+            (car (cdr (car bindings))))))
+
 (defmacro and (&rest)
   (if (eq &rest ()) #t
       (list 'if (car &rest) (cons 'and (cdr &rest)) #f)))
+
+(defmacro or (&rest)
+  (if (eq &rest ()) #f
+    (let ((sym (gensym)))
+      (list 'let (list (list sym (car &rest)))
+             (list 'if sym sym (cons 'or (cdr &rest)))))))
+
+(defmacro cond (&rest)
+  (if (eq &rest ()) #f
+    (list 'if (caar &rest) (cadr (car &rest))
+          (cons 'cond (cdr &rest)))))
+
+(defn factorial (n)
+  (if (== n 0) 1 (* n (factorial (dec n)))))
+
+(defn twice (f)
+  (lambda (x) (f (f x))))
+
+(defn compose (f g)
+  (lambda (x) (f (g x))))
+
+(defn ntimes (n f)
+  (if (== n 0)
+      (lambda (x) x)
+      (compose f (ntimes (dec n) f))))
+
+(defn church (n)
+  (lambda (f) (ntimes n f)))
+
+(defn unchurch (cn)
+  ((cn inc) 0))
+
+(defn range (start end)
+  (if (>= start end) ()
+    (cons start (range (inc start) end))))
+
+(defn map (f list)
+  (if (eq list ()) ()
+    (cons (f (car list)) (map f (cdr list)))))
+
+(defn reduce (f z list)
+  (if (eq list ()) z
+    (reduce f (f z (car list)) (cdr list))))
+
+(defn last (list)
+  (if (eq list ())
+    (error "last: applied to empty list")
+    (reduce (lambda (x y) y) (car list) (cdr list))))
+
+(defn butlast (list)
+  (if (or (eq list ()) (eq (cdr list) ()))
+      ()
+      (cons (car list) (butlast (cdr list)))))

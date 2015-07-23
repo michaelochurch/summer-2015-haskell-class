@@ -42,13 +42,12 @@ dCmp _ _ = error "arity error in dCmp"
 numCmp :: (Double -> Double -> Bool) -> String -> LispValue
 numCmp f str = LVFunction $ liftFunction (dCmp f) (Just 2) str
 
-lNot :: [Bool] -> Bool
-lNot [True] = False
-lNot [False] = True
-lNot _ = error "arity error in lNot"
-
 lispNot :: LispFunction
-lispNot = liftFunction lNot (Just 1) "not"
+lispNot = LFPrimitive "not" $ \vs ->
+  case vs of
+   [(LVBool False)] -> Right $ LVBool True
+   [_]              -> Right $ LVBool False
+   _                -> Left $ LispError $ LVString "not requires one argument"
 
 eq :: LispValue -> LispValue -> Bool
 eq (LVString v1) (LVString v2) = v1 == v2
@@ -115,17 +114,24 @@ setMacroAction vals =
 setMacro :: LispFunction
 setMacro = LFAction "set-macro!" $ setMacroAction
 
+macroexpand1Action :: LispFunction
+macroexpand1Action = LFAction "macroexpand-1" $ \vs ->
+  case vs of
+   [v] -> macroexpand1 v
+   _   -> failWithString "macroexpand-1 requires 1 value"
+
 macroexpandAction :: LispFunction
 macroexpandAction = LFAction "macroexpand" $ \vs ->
   case vs of
    [v] -> macroexpand v
    _   -> failWithString "macroexpand requires 1 value"
 
-macroexpand1Action :: LispFunction
-macroexpand1Action = LFAction "macroexpand-1" $ \vs ->
+macroexpandAllAction :: LispFunction
+macroexpandAllAction = LFAction "macroexpand-all" $ \vs ->
   case vs of
-   [v] -> macroexpand1 v
-   _   -> failWithString "macroexpand-1 requires 1 value"
+   [v] -> macroexpandAll v
+   _   -> failWithString "macroexpand-all requires 1 value"
+
 
 execFile :: String -> Lisp LispValue
 execFile filename = do
@@ -141,6 +147,12 @@ loadFileAction = LFAction "load-file" $ \vs ->
   case vs of
    [(LVString filename)] -> execFile filename
    _                     -> failWithString "load-file: requires 1 string"
+
+throwLispError :: LispFunction
+throwLispError = LFAction "error" $ \vs ->
+  case vs of
+   [v] -> lispFail $ LispError v
+   _   -> lispFail $ LispError $ LVList vs
 
 globalBuiltins :: M.Map String LispValue
 globalBuiltins = M.fromList [("+", LVFunction plus),
@@ -158,10 +170,12 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("cdr", LVFunction lispCdr),
                              ("cons", LVFunction lispCons),
                              ("eq", LVFunction lispEq),
+                             ("error", LVFunction throwLispError),
                              ("gensym", LVFunction gensym),
                              ("load-file", LVFunction loadFileAction),
                              ("macroexpand", LVFunction macroexpandAction),
                              ("macroexpand-1", LVFunction macroexpand1Action),
+                             ("macroexpand-all", LVFunction macroexpandAllAction),
                              ("not", LVFunction lispNot),
                              ("pi", LVNumber pi),
                              ("quit", LVFunction quit),
