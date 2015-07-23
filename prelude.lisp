@@ -34,11 +34,14 @@
   (if (eq &rest ()) #t
       (list 'if (car &rest) (cons 'and (cdr &rest)) #f)))
 
+;; (defmacro or (&rest)
+;;   (if (eq &rest ()) #f
+;;     (let ((sym (gensym)))
+;;       (list 'let (list (list sym (car &rest)))
+;;              (list 'if sym sym (cons 'or (cdr &rest)))))))
+
 (defmacro or (&rest)
-  (if (eq &rest ()) #f
-    (let ((sym (gensym)))
-      (list 'let (list (list sym (car &rest)))
-             (list 'if sym sym (cons 'or (cdr &rest)))))))
+  (list 'not (list 'and (map (lambda (form) (list 'not form)) &rest))))
 
 (defmacro cond (&rest)
   (if (eq &rest ()) #f
