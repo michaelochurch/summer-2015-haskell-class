@@ -32,7 +32,9 @@
 
 (defmacro and (&rest)
   (if (eq &rest ()) #t
-      (list 'if (car &rest) (cons 'and (cdr &rest)) #f)))
+      (if (eq (cdr &rest) ())
+	  (car &rest)
+	  (list 'if (car &rest) (cons 'and (cdr &rest)) #f))))
 
 (defmacro or (&rest)
   (if (eq &rest ()) #f
