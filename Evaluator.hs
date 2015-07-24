@@ -78,7 +78,7 @@ oneStep (Apply lispFn lispValues) =
           --TODO: need to handle TCO properly.
           newFrame   = M.fromList $ mkFrame (name:params) (self:lispValues)
           newStack   = newFrame:stack'
-      nFrames <- pushFrames (newFrame:newStack)
+      nFrames <- pushFrames newStack
       return $ InsideClosure (Form body) nFrames
 
 oneStep (InsideClosure value@(Value _) nFrames) = do
@@ -214,13 +214,16 @@ macroexpand lv = do
 
 -- macroexpands a Lisp form with left-most outer-most macroexpansion.
 macroexpandAll :: LispValue -> Lisp LispValue
-macroexpandAll lv = do
-  lv1 <- macroexpand lv
-  case lv1 of
-   LVList subforms -> do
-     expandedForms <- mapM macroexpandAll subforms
-     return $ LVList expandedForms
-   _               -> return lv1
+macroexpandAll lv =
+  case lv of
+    LVList ((LVSymbol "quote"):_) -> return lv
+    _ -> do
+      lv1 <- macroexpand lv
+      case lv1 of
+        LVList subforms -> do
+          expandedForms <- mapM macroexpandAll subforms
+          return $ LVList expandedForms
+        _               -> return lv1
 
 eval :: LispValue -> Lisp LispValue
 eval value = do

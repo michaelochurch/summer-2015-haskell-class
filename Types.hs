@@ -29,6 +29,10 @@ data LispFunction =
                lfcParams :: [String],
                lfcBody :: LispValue}
 
+-- TODO: LFClosure doesn't need its own stack. It can fuse together the
+-- LispFrames into one and that's preferable. (Else we get O(n**2) time AND
+-- space performance with recursive calls, which is BAD.)
+
 instance Show LispFunction where
   show (LFPrimitive name _) = "< prim. fn named " ++ name ++ " >"
   show (LFAction    name _) = "< prim. action named " ++ name ++ " >"
@@ -124,7 +128,7 @@ pushFrame frame =
 
 pushFrames :: [LispFrame] -> Lisp Int
 pushFrames frames = do
-  forM_ frames pushFrame
+  forM_ (reverse frames) pushFrame
   return $ length frames
 
 popFrame :: Lisp ()

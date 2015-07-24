@@ -6,6 +6,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Evaluator
 import Parser
+import Printer
 import Reader
 import Types
 
@@ -132,6 +133,15 @@ macroexpandAllAction = LFAction "macroexpand-all" $ \vs ->
    [v] -> macroexpandAll v
    _   -> failWithString "macroexpand-all requires 1 value"
 
+printActionCore :: [LispValue] -> Lisp LispValue
+printActionCore vs = do
+  mapM_ (liftIO . lispPrint) vs
+  case vs of
+    [v] -> return v
+    _   -> return $ LVList vs
+
+printAction :: LispFunction
+printAction = LFAction "print" printActionCore
 
 execFile :: String -> Lisp LispValue
 execFile filename = do
@@ -178,6 +188,7 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("macroexpand-all", LVFunction macroexpandAllAction),
                              ("not", LVFunction lispNot),
                              ("pi", LVNumber pi),
+                             ("print", LVFunction printAction),
                              ("quit", LVFunction quit),
                              ("set-macro!", LVFunction setMacro)]
 

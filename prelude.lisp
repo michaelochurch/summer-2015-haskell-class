@@ -1,3 +1,7 @@
+;; NESTED LAMBDA BUG
+;; ((lambda (x) ((lambda (x) x) 19.0)) 5.0)
+;;   -> 5.0
+
 (def list (lambda (&rest) &rest))
 
 (def defn
@@ -8,7 +12,7 @@
 
 (def defmacro
   (lambda (fname args body)
-    (list 'do 
+    (list 'do
           (list 'def fname (list 'lambda fname args body))
           (list 'set-macro! (list 'quote fname)))))
 
@@ -34,14 +38,11 @@
   (if (eq &rest ()) #t
       (list 'if (car &rest) (cons 'and (cdr &rest)) #f)))
 
-;; (defmacro or (&rest)
-;;   (if (eq &rest ()) #f
-;;     (let ((sym (gensym)))
-;;       (list 'let (list (list sym (car &rest)))
-;;              (list 'if sym sym (cons 'or (cdr &rest)))))))
-
 (defmacro or (&rest)
-  (list 'not (list 'and (map (lambda (form) (list 'not form)) &rest))))
+  (if (eq &rest ()) #f
+    (let ((sym (gensym)))
+      (list 'let (list (list sym (car &rest)))
+             (list 'if sym sym (cons 'or (cdr &rest)))))))
 
 (defmacro cond (&rest)
   (if (eq &rest ()) #f
@@ -86,6 +87,7 @@
     (reduce (lambda (x y) y) (car list) (cdr list))))
 
 (defn butlast (list)
-  (if (or (eq list ()) (eq (cdr list) ()))
-      ()
-      (cons (car list) (butlast (cdr list)))))
+  (do
+      (if (or (eq list ()) (eq (cdr list) ()))
+          ()
+          (cons (car list) (butlast (cdr list))))))
