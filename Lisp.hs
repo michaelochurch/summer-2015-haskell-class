@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad
 import Control.Monad.Except
+import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
 
 import Builtins
@@ -37,5 +38,11 @@ handleError lispError = do
 repl :: Lisp ()
 repl = forever (repl1 `catchError` handleError)
 
+usingPrelude :: IO Bool
+usingPrelude = fmap (notElem "--no-prelude") getArgs
+
 main :: IO ()
-main = repl `runLisp` initEnv >> return ()
+main = do
+  prelude <- usingPrelude
+  env <- if prelude then withPreludeEnv else return initEnv
+  repl `runLisp` env >> return ()

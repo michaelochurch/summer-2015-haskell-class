@@ -201,3 +201,6 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
 
 initEnv :: LispEnv
 initEnv = LispEnv [] globalBuiltins 1 S.empty
+
+withPreludeEnv :: IO LispEnv
+withPreludeEnv = fmap snd $ execFile "prelude.lisp" `runLisp` initEnv
