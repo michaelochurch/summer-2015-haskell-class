@@ -133,6 +133,12 @@ macroexpandAllAction = LFAction "macroexpand-all" $ \vs ->
    [v] -> macroexpandAll v
    _   -> failWithString "macroexpand-all requires 1 value"
 
+evalAction :: LispFunction
+evalAction = LFAction "eval" $ \vs ->
+  case vs of
+    [v] -> eval v
+    _   -> failWithString "eval requires 1 value"
+
 printActionCore :: [LispValue] -> Lisp LispValue
 printActionCore vs = do
   mapM_ (liftIO . lispPrint) vs
@@ -181,6 +187,7 @@ globalBuiltins = M.fromList [("+", LVFunction plus),
                              ("cons", LVFunction lispCons),
                              ("eq", LVFunction lispEq),
                              ("error", LVFunction throwLispError),
+                             ("eval", LVFunction evalAction),
                              ("gensym", LVFunction gensym),
                              ("load-file", LVFunction loadFileAction),
                              ("macroexpand", LVFunction macroexpandAction),

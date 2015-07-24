@@ -1,7 +1,3 @@
-;; NESTED LAMBDA BUG
-;; ((lambda (x) ((lambda (x) x) 19.0)) 5.0)
-;;   -> 5.0
-
 (def list (lambda (&rest) &rest))
 
 (def defn
@@ -81,6 +77,9 @@
   (if (eq list ()) z
     (reduce f (f z (car list)) (cdr list))))
 
+(defn flip (f)
+  (lambda (x y) (f y x)))
+
 (defn last (list)
   (if (eq list ())
     (error "last: applied to empty list")
@@ -91,3 +90,16 @@
       (if (or (eq list ()) (eq (cdr list) ()))
           ()
           (cons (car list) (butlast (cdr list))))))
+
+(defn append (list1 list2)
+  (if (eq list1 ())
+      list2
+      (cons (car list1) (append (cdr list1) list2))))
+
+(defn concat (lists)
+  (reduce append () lists))
+
+(defn apply (f &rest)
+  (if (eq &rest ())
+    (f)
+    (eval (cons f (append (butlast &rest) (last &rest))))))
