@@ -75,6 +75,13 @@
   (if (eq list ()) ()
     (cons (f (car list)) (map f (cdr list)))))
 
+(defn filter (f list)
+  (if (eq list ()) ()
+    (let ((first (car list)))
+      (if (f first)
+	  (cons first (filter f (cdr list)))
+	  (filter f (cdr list))))))
+
 (defn reduce (f z list)
   (if (eq list ()) z
     (reduce f (f z (car list)) (cdr list))))
