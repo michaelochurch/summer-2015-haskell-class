@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Types where
+module Lisp.Types where
 
 import Control.Lens
 import Control.Monad.Except

@@ -1,10 +1,10 @@
-module Reader where
+module Lisp.Reader where
 
 import Data.Char (isDigit)
 import Text.Parsec
 
-import Parser
-import Types
+import Lisp.Parser
+import Lisp.Types
 
 dequoteStringLiteral :: String -> String
 dequoteStringLiteral s =

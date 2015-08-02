@@ -1,6 +1,6 @@
-module Evaluator where
+module Lisp.Evaluator where
 
-import Types
+import Lisp.Types
 
 import Control.Lens
 import qualified Data.Map as M

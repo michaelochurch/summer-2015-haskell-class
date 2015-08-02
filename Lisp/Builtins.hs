@@ -1,14 +1,14 @@
-module Builtins where
+module Lisp.Builtins where
 
 import Control.Lens
 import Control.Monad.Trans (liftIO)
 import qualified Data.Map as M
 import qualified Data.Set as S
-import Evaluator
-import Parser
-import Printer
-import Reader
-import Types
+import Lisp.Evaluator
+import Lisp.Parser
+import Lisp.Printer
+import Lisp.Reader
+import Lisp.Types
 
 dSum :: [Double] -> Double
 dSum = sum

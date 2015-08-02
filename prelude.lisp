@@ -112,3 +112,8 @@
   (if (eq &rest ())
     (f)
     (eval (cons f (append (butlast &rest) (last &rest))))))
+
+(defn reverse (list1)
+  (if (eq list1 ())
+      ()
+      (append (reverse (cdr list1)) (list (car list1)))))

@@ -1,11 +1,11 @@
 {-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
 
-module Printer where
+module Lisp.Printer where
 
 import Control.Monad.IO.Class
 import Data.List (intercalate)
 
-import Types
+import Lisp.Types
 
 class LispShow a where
   lispShow :: a -> String

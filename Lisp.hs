@@ -5,11 +5,11 @@ import Control.Monad.Except
 import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
 
-import Builtins
-import Evaluator
-import Printer
-import Reader
-import Types
+import Lisp.Builtins
+import Lisp.Evaluator
+import Lisp.Printer
+import Lisp.Reader
+import Lisp.Types
 
 prompt :: String
 prompt = "λισπ> "

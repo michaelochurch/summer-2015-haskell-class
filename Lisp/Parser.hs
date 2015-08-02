@@ -1,4 +1,4 @@
-module Parser where
+module Lisp.Parser where
 
 import Control.Applicative
 import Data.Char (isSpace)
