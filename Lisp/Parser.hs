@@ -8,7 +8,7 @@ import Text.Parsec.String (parseFromFile)
 data SExp = SAtom String | SList [SExp] deriving (Eq, Show)
 
 parseAtom :: Parsec String u SExp
-parseAtom = SAtom <$> many1 (satisfy (\c -> c `notElem` "()\";" && (not . isSpace) c))
+parseAtom = SAtom <$> some (satisfy (\c -> c `notElem` "()\";" && (not . isSpace) c))
 
 inStringLit :: Parsec String u Char
 inStringLit = (noneOf "\"\\") <|> string "\\\"" *> return '"' <|> string "\\\\"
@@ -25,7 +25,7 @@ parseString = (SAtom . enquote) <$> stringLit
 
 parseList :: Parsec String u SExp
 parseList = SList <$> (char '(' *> many space *> body <* many space <* char ')')
-  where body = sepBy parseSExp (many1 space)
+  where body = sepBy parseSExp (some space)
 
 quoteAtom :: SExp
 quoteAtom = SAtom "quote"
