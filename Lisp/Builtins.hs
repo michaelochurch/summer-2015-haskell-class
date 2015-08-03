@@ -18,6 +18,7 @@ plus = liftFunction dSum Nothing "+"
 
 dMinus :: [Double] -> Double
 dMinus [] = 0
+dMinus [d1] = -d1
 dMinus (d1:ds) = d1 - (sum ds)
 
 minus :: LispFunction
@@ -31,6 +32,7 @@ times = liftFunction dProd Nothing "*"
 
 dDiv :: [Double] -> Double
 dDiv [] = 1
+dDiv [d1] = 1 / d1
 dDiv (d1:ds) = d1 / (product ds)
 
 divide :: LispFunction
