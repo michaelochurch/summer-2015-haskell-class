@@ -11,7 +11,7 @@ parseAtom :: Parsec String u SExp
 parseAtom = SAtom <$> some (satisfy (\c -> c `notElem` "()\";" && (not . isSpace) c))
 
 inStringLit :: Parsec String u Char
-inStringLit = (noneOf "\"\\") <|> string "\\\"" *> return '"' <|> string "\\\\"
+inStringLit = (noneOf "\"\\") <|> (try $ string "\\\"") *> return '"' <|> string "\\\\"
  *> return '\\'
 
 stringLit :: Parsec String u String
