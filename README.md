@@ -1,6 +1,6 @@
 # Summer 2015 Haskell Class 
 
-June 29 - September 10, 2015; Chicago, IL
+June 29 - September 23, 2015; Chicago, IL
 
 ## Course slides
 * [Lecture 1 on June 29](https://docs.google.com/presentation/d/1rnqw2WXHZ_KnjoQ5Wu92of0aPvemhi_GnCzY_xPMjms/edit?usp=sharing) Introduction ("Why Haskell?) as well as the core ideas behind functional programming -- and why they're important. Initial foray into Haskell coding with ```ghci``` and an explanation of function currying. 
