@@ -12,6 +12,7 @@ June 29 - September 23, 2015; Chicago, IL
 * [Lecture 6 on July 20](https://docs.google.com/presentation/d/1UahLtttRrw0-lRByXD5rmtDnU50KTXBX9DN5VnRTupY/edit#slide=id.ga2fedb778_0_0). Covered: higher-kinded types and type classes ```Functor```, ```Applicative```, and ```Monad```. 
 * [Lecture 7 on July 22](https://docs.google.com/presentation/d/12pBuKZVve99Jj1dQP2buT5J0QtXihqyLRTc4AjeKjXY/edit?usp=sharing). Covered: ```Reader```, ```Writer``` monads, ```Applicative``` and ```Monad``` laws, monad transformers. 
 * [Lab 2 on August 5](https://docs.google.com/presentation/d/1nv-O59Jot9RRFJauLLXV4PewDf4pjo7nbafxG6x-jqw/edit?usp=sharing). Covered: modules and namespacing, applicative parsing with ```parsec```, a monad-transformer stack (```Lisp``` monad), and sets and maps (```Data.Set```, ```Data.Map```).
+* [Lecture 8 on August 13](https://docs.google.com/presentation/d/11QAjAvUV9aVDajOqUeNp2jQPdHd5_s1dQs73nY5sxOo/edit?usp=sharing). Covered: ```Foldable``` and ```Traversable```, plus a potpourri of language extensions (including ```MultiParamTypeClasses``` and ```FunctionalDependencies```.)
 
 ## Lecture videos
 * [Lecture 1 video](https://www.youtube.com/watch?v=ZoBOUqS1jgI)
