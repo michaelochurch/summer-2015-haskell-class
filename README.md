@@ -13,6 +13,7 @@ June 29 - September 23, 2015; Chicago, IL
 * [Lecture 7 on July 22](https://docs.google.com/presentation/d/12pBuKZVve99Jj1dQP2buT5J0QtXihqyLRTc4AjeKjXY/edit?usp=sharing). Covered: ```Reader```, ```Writer``` monads, ```Applicative``` and ```Monad``` laws, monad transformers. 
 * [Lab 2 on August 5](https://docs.google.com/presentation/d/1nv-O59Jot9RRFJauLLXV4PewDf4pjo7nbafxG6x-jqw/edit?usp=sharing). Covered: modules and namespacing, applicative parsing with ```parsec```, a monad-transformer stack (```Lisp``` monad), and sets and maps (```Data.Set```, ```Data.Map```).
 * [Lecture 8 on August 13](https://docs.google.com/presentation/d/11QAjAvUV9aVDajOqUeNp2jQPdHd5_s1dQs73nY5sxOo/edit?usp=sharing). Covered: ```Foldable``` and ```Traversable```, plus a potpourri of language extensions (including ```MultiParamTypeClasses``` and ```FunctionalDependencies```.)
+* [Lecture 9 on August 17](https://docs.google.com/presentation/d/1U9uoaQEoKAjcegPEVFTNSIKv92jhqkkz9qVeBFzr4kY/edit?usp=sharing). Covered: IO, files and ```Handle```, error-handling and the ```Exception``` type-class. Also, ```IORef``` and ```MVar```. 
 
 ## Lecture videos
 * [Lecture 1 video](https://www.youtube.com/watch?v=ZoBOUqS1jgI)
